@@ -49,6 +49,18 @@ public class InventoryService {
         return toDto(productRepository.save(product));
     }
 
+    @Transactional
+    public ProductDto updateProduct(Long productId, com.jjlpg.trading.dto.UpdateProductRequest request) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+        product.setSku(request.sku());
+        product.setName(request.name());
+        product.setType(request.type());
+        product.setStock(request.stock());
+        product.setUnitPrice(request.unitPrice());
+        return toDto(productRepository.save(product));
+    }
+
     private ProductDto toDto(Product product) {
         return new ProductDto(
                 String.valueOf(product.getId()),

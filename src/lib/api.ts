@@ -315,3 +315,17 @@ export async function updateStock(productId: string, stock: number): Promise<Pro
     body: JSON.stringify({ stock }),
   })
 }
+
+export async function updateProduct(productId: string, payload: Omit<Product, "id">): Promise<Product> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 300))
+    const product = MOCK_PRODUCTS.find(p => p.id === productId)
+    if (!product) throw new Error("Product not found")
+    Object.assign(product, payload)
+    return product
+  }
+  return request<Product>(`/inventory/products/${productId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}

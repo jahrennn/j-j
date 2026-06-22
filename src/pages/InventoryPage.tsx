@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent } from "react"
 import { Flame, Cylinder, Package, Loader2, Plus, Edit2 } from "lucide-react"
 import { Badge, Card, Button, Modal, Input, Label, Select } from "@/components/ui"
-import { getInventory, createProduct, updateStock, type Product, type ItemType } from "@/lib/api"
+import { getInventory, createProduct, updateProduct, type Product, type ItemType } from "@/lib/api"
 import { cn, formatCurrency } from "@/lib/utils"
 
 export function InventoryPage() {
@@ -10,7 +10,7 @@ export function InventoryPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [addProductOpen, setAddProductOpen] = useState(false)
-  const [editStockProduct, setEditStockProduct] = useState<Product | null>(null)
+  const [editProduct, setEditProduct] = useState<Product | null>(null)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -52,18 +52,23 @@ export function InventoryPage() {
     }
   }
 
-  const handleEditStock = async (e: FormEvent<HTMLFormElement>) => {
+  const handleEditProduct = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!editStockProduct) return
+    if (!editProduct) return
     setIsSubmitting(true)
     try {
       const formData = new FormData(e.currentTarget)
-      const newStock = parseInt(formData.get("stock") as string, 10)
-      await updateStock(editStockProduct.id, newStock)
-      setEditStockProduct(null)
+      await updateProduct(editProduct.id, {
+        sku: formData.get("sku") as string,
+        name: formData.get("name") as string,
+        type: formData.get("type") as ItemType,
+        stock: parseInt(formData.get("stock") as string, 10),
+        unitPrice: parseFloat(formData.get("unitPrice") as string),
+      })
+      setEditProduct(null)
       fetchInventory()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update stock")
+      alert(err instanceof Error ? err.message : "Failed to update product")
     } finally {
       setIsSubmitting(false)
     }
@@ -170,7 +175,7 @@ export function InventoryPage() {
                         </Badge>
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <Button variant="ghost" size="icon" onClick={() => setEditStockProduct(p)}>
+                        <Button variant="ghost" size="icon" onClick={() => setEditProduct(p)}>
                           <Edit2 className="h-4 w-4" />
                         </Button>
                       </td>
@@ -224,31 +229,53 @@ export function InventoryPage() {
       </Modal>
 
       <Modal
-        isOpen={!!editStockProduct}
-        onClose={() => setEditStockProduct(null)}
-        title="Update Stock"
+        isOpen={!!editProduct}
+        onClose={() => setEditProduct(null)}
+        title="Edit Product"
       >
-        <form onSubmit={handleEditStock} className="flex flex-col gap-4">
+        <form onSubmit={handleEditProduct} className="flex flex-col gap-4">
           <div className="space-y-1">
-            <Label>Product</Label>
-            <Input disabled value={editStockProduct?.name || ""} />
+            <Label>Name</Label>
+            <Input name="name" required defaultValue={editProduct?.name || ""} />
           </div>
           <div className="space-y-1">
-            <Label>New Stock Level</Label>
+            <Label>SKU</Label>
+            <Input name="sku" required defaultValue={editProduct?.sku || ""} />
+          </div>
+          <div className="space-y-1">
+            <Label>Type</Label>
+            <Select name="type" required defaultValue={editProduct?.type || "LPG Refill"}>
+              <option value="LPG Refill">LPG Refill</option>
+              <option value="LPG Tank">LPG Tank</option>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Stock</Label>
             <Input
               name="stock"
               type="number"
               min="0"
               required
-              defaultValue={editStockProduct?.stock || 0}
+              defaultValue={editProduct?.stock || 0}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Unit Price (₱)</Label>
+            <Input
+              name="unitPrice"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              defaultValue={editProduct?.unitPrice || 0}
             />
           </div>
           <div className="mt-4 flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={() => setEditStockProduct(null)}>
+            <Button type="button" variant="ghost" onClick={() => setEditProduct(null)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Stock"}
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
             </Button>
           </div>
         </form>
