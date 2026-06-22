@@ -16,21 +16,21 @@ import { cn, formatCurrency, formatDate } from "@/lib/utils"
 const stats = [
   {
     key: "totalRevenue" as const,
-    label: "Total Revenue",
+    label: "Today's Revenue",
     icon: DollarSign,
     format: (v: number) => formatCurrency(v),
     tint: "bg-primary/10 text-primary",
   },
   {
     key: "totalOrders" as const,
-    label: "Total Orders",
+    label: "Today's Orders",
     icon: ShoppingCart,
     format: (v: number) => v.toLocaleString(),
     tint: "bg-accent/15 text-accent",
   },
   {
     key: "averageTransactionValue" as const,
-    label: "Avg. Transaction",
+    label: "Today's Avg. Transaction",
     icon: TrendingUp,
     format: (v: number) => formatCurrency(v),
     tint: "bg-success/15 text-success",
@@ -42,7 +42,14 @@ export function DashboardPage() {
   const [inventory, setInventory] = useState<Product[]>([])
 
   useEffect(() => {
-    getSales().then(setData)
+    function toLocalDateString(d: Date): string {
+      const offset = d.getTimezoneOffset() * 60000;
+      return new Date(d.getTime() - offset).toISOString().slice(0, 10);
+    }
+    const today = toLocalDateString(new Date())
+    const range = { startDate: today, endDate: today }
+    
+    getSales(range).then(setData)
     getInventory().then((res) => setInventory(res.products.slice(0, 3)))
   }, [])
 

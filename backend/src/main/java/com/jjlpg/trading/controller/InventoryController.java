@@ -37,4 +37,10 @@ public class InventoryController {
     public ProductDto updateProduct(@PathVariable Long id, @Valid @RequestBody com.jjlpg.trading.dto.UpdateProductRequest request) {
         return inventoryService.updateProduct(id, request);
     }
+
+    @DeleteMapping("/products/{id}")
+    public org.springframework.http.ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
+        inventoryService.deleteProduct(id);
+        return org.springframework.http.ResponseEntity.noContent().build();
+    }
 }

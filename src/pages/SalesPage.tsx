@@ -21,13 +21,18 @@ import {
 } from "@/lib/api"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
+function toLocalDateString(d: Date): string {
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 10);
+}
+
 function defaultRange(): DateRange {
   const end = new Date()
   const start = new Date()
   start.setDate(end.getDate() - 30)
   return {
-    startDate: start.toISOString().slice(0, 10),
-    endDate: end.toISOString().slice(0, 10),
+    startDate: toLocalDateString(start),
+    endDate: toLocalDateString(end),
   }
 }
 

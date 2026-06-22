@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent } from "react"
 import { Flame, Cylinder, Package, Loader2, Plus, Edit2 } from "lucide-react"
 import { Badge, Card, Button, Modal, Input, Label, Select } from "@/components/ui"
-import { getInventory, createProduct, updateProduct, type Product, type ItemType } from "@/lib/api"
+import { getInventory, createProduct, updateProduct, deleteProduct, type Product, type ItemType } from "@/lib/api"
 import { cn, formatCurrency } from "@/lib/utils"
 
 export function InventoryPage() {
@@ -69,6 +69,22 @@ export function InventoryPage() {
       fetchInventory()
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update product")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDeleteProduct = async () => {
+    if (!editProduct) return
+    if (!window.confirm(`Are you sure you want to delete ${editProduct.name}?`)) return
+    
+    setIsSubmitting(true)
+    try {
+      await deleteProduct(editProduct.id)
+      setEditProduct(null)
+      fetchInventory()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete product")
     } finally {
       setIsSubmitting(false)
     }
@@ -270,13 +286,23 @@ export function InventoryPage() {
               defaultValue={editProduct?.unitPrice || 0}
             />
           </div>
-          <div className="mt-4 flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={() => setEditProduct(null)}>
-              Cancel
+          <div className="mt-4 flex items-center justify-between">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteProduct}
+              disabled={isSubmitting}
+            >
+              Delete Product
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
-            </Button>
+            <div className="flex gap-3">
+              <Button type="button" variant="ghost" onClick={() => setEditProduct(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

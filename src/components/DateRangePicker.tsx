@@ -13,14 +13,19 @@ const presets: Preset[] = [
   { label: "90D", days: 90 },
 ]
 
+function toLocalDateString(d: Date): string {
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 10);
+}
+
 function isoDaysAgo(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() - days)
-  return d.toISOString().slice(0, 10)
+  return toLocalDateString(d)
 }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10)
+  return toLocalDateString(new Date())
 }
 
 export function DateRangePicker({

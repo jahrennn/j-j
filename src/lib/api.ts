@@ -329,3 +329,15 @@ export async function updateProduct(productId: string, payload: Omit<Product, "i
     body: JSON.stringify(payload),
   })
 }
+
+export async function deleteProduct(productId: string): Promise<void> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 300))
+    const index = MOCK_PRODUCTS.findIndex(p => p.id === productId)
+    if (index !== -1) MOCK_PRODUCTS.splice(index, 1)
+    return
+  }
+  await request<void>(`/inventory/products/${productId}`, {
+    method: "DELETE",
+  })
+}

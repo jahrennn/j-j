@@ -61,6 +61,14 @@ public class InventoryService {
         return toDto(productRepository.save(product));
     }
 
+    @Transactional
+    public void deleteProduct(Long productId) {
+        if (!productRepository.existsById(productId)) {
+            throw new IllegalArgumentException("Product not found");
+        }
+        productRepository.deleteById(productId);
+    }
+
     private ProductDto toDto(Product product) {
         return new ProductDto(
                 String.valueOf(product.getId()),
