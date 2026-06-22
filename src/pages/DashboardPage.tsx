@@ -10,7 +10,7 @@ import {
   Cylinder,
 } from "lucide-react"
 import { Badge, Button, Card } from "@/components/ui"
-import { getSales, type SalesResponse } from "@/lib/api"
+import { getSales, getInventory, type SalesResponse, type Product } from "@/lib/api"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
 const stats = [
@@ -39,16 +39,20 @@ const stats = [
 
 export function DashboardPage() {
   const [data, setData] = useState<SalesResponse | null>(null)
+  const [inventory, setInventory] = useState<Product[]>([])
 
   useEffect(() => {
     getSales().then(setData)
+    getInventory().then((res) => setInventory(res.products.slice(0, 3)))
   }, [])
 
-  const inventory = [
-    { name: "LPG Refill (11kg)", stock: 142, icon: Flame, tint: "text-accent" },
-    { name: "LPG Tank (11kg)", stock: 38, icon: Cylinder, tint: "text-primary" },
-    { name: "LPG Tank (22kg)", stock: 12, icon: Cylinder, tint: "text-primary" },
-  ]
+  function inventoryIcon(product: Product) {
+    return product.type === "LPG Tank" ? Cylinder : Flame
+  }
+
+  function inventoryTint(product: Product) {
+    return product.type === "LPG Tank" ? "text-primary" : "text-accent"
+  }
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -157,13 +161,14 @@ export function DashboardPage() {
           <div className="divide-y divide-border">
             {inventory.map((item) => {
               const low = item.stock < 20
+              const Icon = inventoryIcon(item)
               return (
                 <div
-                  key={item.name}
+                  key={item.sku}
                   className="flex items-center justify-between px-5 py-3.5"
                 >
                   <div className="flex items-center gap-3">
-                    <item.icon className={cn("h-5 w-5", item.tint)} />
+                    <Icon className={cn("h-5 w-5", inventoryTint(item))} />
                     <span className="text-sm text-foreground">{item.name}</span>
                   </div>
                   <Badge

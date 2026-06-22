@@ -1,33 +1,89 @@
-import { Flame, Cylinder, Package } from "lucide-react"
-import { Badge, Card } from "@/components/ui"
+import { useEffect, useState, FormEvent } from "react"
+import { Flame, Cylinder, Package, Loader2, Plus, Edit2 } from "lucide-react"
+import { Badge, Card, Button, Modal, Input, Label, Select } from "@/components/ui"
+import { getInventory, createProduct, updateStock, type Product, type ItemType } from "@/lib/api"
 import { cn, formatCurrency } from "@/lib/utils"
 
-interface Product {
-  name: string
-  sku: string
-  type: "LPG Refill" | "LPG Tank"
-  stock: number
-  unitPrice: number
-}
-
-const products: Product[] = [
-  { name: "LPG Refill (11kg)", sku: "RF-11", type: "LPG Refill", stock: 142, unitPrice: 950 },
-  { name: "LPG Refill (22kg)", sku: "RF-22", type: "LPG Refill", stock: 64, unitPrice: 1850 },
-  { name: "LPG Tank (11kg)", sku: "TK-11", type: "LPG Tank", stock: 38, unitPrice: 2800 },
-  { name: "LPG Tank (22kg)", sku: "TK-22", type: "LPG Tank", stock: 12, unitPrice: 4600 },
-  { name: "LPG Tank (50kg)", sku: "TK-50", type: "LPG Tank", stock: 6, unitPrice: 9200 },
-]
-
 export function InventoryPage() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const [addProductOpen, setAddProductOpen] = useState(false)
+  const [editStockProduct, setEditStockProduct] = useState<Product | null>(null)
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const fetchInventory = async () => {
+    try {
+      setLoading(true)
+      const res = await getInventory()
+      setProducts(res.products)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load inventory.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchInventory()
+  }, [])
+
+  const handleAddProduct = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    try {
+      const formData = new FormData(e.currentTarget)
+      await createProduct({
+        sku: formData.get("sku") as string,
+        name: formData.get("name") as string,
+        type: formData.get("type") as ItemType,
+        stock: parseInt(formData.get("stock") as string, 10),
+        unitPrice: parseFloat(formData.get("unitPrice") as string),
+      })
+      setAddProductOpen(false)
+      fetchInventory()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to add product")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleEditStock = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!editStockProduct) return
+    setIsSubmitting(true)
+    try {
+      const formData = new FormData(e.currentTarget)
+      const newStock = parseInt(formData.get("stock") as string, 10)
+      await updateStock(editStockProduct.id, newStock)
+      setEditStockProduct(null)
+      fetchInventory()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update stock")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">
-          Inventory
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Current stock levels for refills and tanks.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">
+            Inventory
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Current stock levels for refills and tanks.
+          </p>
+        </div>
+        <Button onClick={() => setAddProductOpen(true)}>
+          <Plus className="h-4 w-4" />
+          Add Product
+        </Button>
       </div>
 
       <Card className="overflow-hidden">
@@ -44,65 +100,159 @@ export function InventoryPage() {
                 <th className="px-5 py-3 text-right font-medium">Unit Price</th>
                 <th className="px-5 py-3 text-right font-medium">Stock</th>
                 <th className="px-5 py-3 text-right font-medium">Status</th>
+                <th className="px-5 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {products.map((p) => {
-                const low = p.stock < 20
-                const isTank = p.type === "LPG Tank"
-                return (
-                  <tr
-                    key={p.sku}
-                    className="border-b border-border last:border-0 hover:bg-muted/40"
-                  >
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <span
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-12 text-center">
+                    <span className="inline-flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading inventory...
+                    </span>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-12 text-center text-destructive">
+                    {error}
+                  </td>
+                </tr>
+              ) : (
+                products.map((p) => {
+                  const low = p.stock < 20
+                  const isTank = p.type === "LPG Tank"
+                  return (
+                    <tr
+                      key={p.sku}
+                      className="border-b border-border last:border-0 hover:bg-muted/40"
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={cn(
+                              "flex h-8 w-8 items-center justify-center rounded-lg",
+                              isTank
+                                ? "bg-primary/10 text-primary"
+                                : "bg-accent/15 text-accent",
+                            )}
+                          >
+                            {isTank ? (
+                              <Cylinder className="h-4 w-4" />
+                            ) : (
+                              <Flame className="h-4 w-4" />
+                            )}
+                          </span>
+                          <span className="font-medium text-foreground">
+                            {p.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
+                        {p.sku}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-foreground">
+                        {formatCurrency(p.unitPrice)}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-foreground">
+                        {p.stock}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <Badge
                           className={cn(
-                            "flex h-8 w-8 items-center justify-center rounded-lg",
-                            isTank
-                              ? "bg-primary/10 text-primary"
-                              : "bg-accent/15 text-accent",
+                            low
+                              ? "bg-destructive/10 text-destructive"
+                              : "bg-success/15 text-success",
                           )}
                         >
-                          {isTank ? (
-                            <Cylinder className="h-4 w-4" />
-                          ) : (
-                            <Flame className="h-4 w-4" />
-                          )}
-                        </span>
-                        <span className="font-medium text-foreground">
-                          {p.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
-                      {p.sku}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-foreground">
-                      {formatCurrency(p.unitPrice)}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-foreground">
-                      {p.stock}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <Badge
-                        className={cn(
-                          low
-                            ? "bg-destructive/10 text-destructive"
-                            : "bg-success/15 text-success",
-                        )}
-                      >
-                        {low ? "Low stock" : "In stock"}
-                      </Badge>
-                    </td>
-                  </tr>
-                )
-              })}
+                          {low ? "Low stock" : "In stock"}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <Button variant="ghost" size="icon" onClick={() => setEditStockProduct(p)}>
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
             </tbody>
           </table>
         </div>
       </Card>
+
+      <Modal
+        isOpen={addProductOpen}
+        onClose={() => setAddProductOpen(false)}
+        title="Add Product"
+      >
+        <form onSubmit={handleAddProduct} className="flex flex-col gap-4">
+          <div className="space-y-1">
+            <Label>Name</Label>
+            <Input name="name" required placeholder="e.g. LPG Refill (11kg)" />
+          </div>
+          <div className="space-y-1">
+            <Label>SKU</Label>
+            <Input name="sku" required placeholder="e.g. RF-11" />
+          </div>
+          <div className="space-y-1">
+            <Label>Type</Label>
+            <Select name="type" required defaultValue="LPG Refill">
+              <option value="LPG Refill">LPG Refill</option>
+              <option value="LPG Tank">LPG Tank</option>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Initial Stock</Label>
+            <Input name="stock" type="number" min="0" required defaultValue={0} />
+          </div>
+          <div className="space-y-1">
+            <Label>Unit Price (₱)</Label>
+            <Input name="unitPrice" type="number" min="0" step="0.01" required defaultValue={0} />
+          </div>
+          <div className="mt-4 flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => setAddProductOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Product"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!editStockProduct}
+        onClose={() => setEditStockProduct(null)}
+        title="Update Stock"
+      >
+        <form onSubmit={handleEditStock} className="flex flex-col gap-4">
+          <div className="space-y-1">
+            <Label>Product</Label>
+            <Input disabled value={editStockProduct?.name || ""} />
+          </div>
+          <div className="space-y-1">
+            <Label>New Stock Level</Label>
+            <Input
+              name="stock"
+              type="number"
+              min="0"
+              required
+              defaultValue={editStockProduct?.stock || 0}
+            />
+          </div>
+          <div className="mt-4 flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => setEditStockProduct(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Stock"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

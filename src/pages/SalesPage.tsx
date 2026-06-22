@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, FormEvent } from "react"
 import {
   DollarSign,
   ShoppingCart,
@@ -7,13 +7,17 @@ import {
   Loader2,
   Flame,
   Cylinder,
+  Plus,
 } from "lucide-react"
-import { Badge, Button, Card } from "@/components/ui"
+import { Badge, Button, Card, Modal, Label, Input, Select } from "@/components/ui"
 import { DateRangePicker } from "@/components/DateRangePicker"
 import {
   getSales,
+  getInventory,
+  createSale,
   type DateRange,
   type SalesResponse,
+  type Product,
 } from "@/lib/api"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
@@ -56,19 +60,49 @@ export function SalesPage() {
   const [data, setData] = useState<SalesResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-    getSales(range).then((res) => {
-      if (active) {
-        setData(res)
-        setLoading(false)
-      }
-    })
-    return () => {
-      active = false
+  const [products, setProducts] = useState<Product[]>([])
+  const [recordSaleOpen, setRecordSaleOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const fetchSales = async () => {
+    try {
+      setLoading(true)
+      const res = await getSales(range)
+      setData(res)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    fetchSales()
   }, [range])
+
+  useEffect(() => {
+    getInventory().then((res) => setProducts(res.products)).catch(console.error)
+  }, [])
+
+  const handleRecordSale = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    try {
+      const formData = new FormData(e.currentTarget)
+      const productId = formData.get("productId") as string
+      const quantity = parseInt(formData.get("quantity") as string, 10)
+      
+      await createSale({ productId, quantity })
+      setRecordSaleOpen(false)
+      fetchSales()
+      // Re-fetch inventory in the background to get updated stock levels
+      getInventory().then((res) => setProducts(res.products)).catch(console.error)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to record sale")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -82,10 +116,16 @@ export function SalesPage() {
             Review LPG refill and tank sales across a selected date range.
           </p>
         </div>
-        <Button variant="outline" onClick={() => window.print()}>
-          <Printer className="h-4 w-4" />
-          Print Report
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="h-4 w-4" />
+            Print Report
+          </Button>
+          <Button onClick={() => setRecordSaleOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Record Sale
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -210,6 +250,37 @@ export function SalesPage() {
           </table>
         </div>
       </Card>
+
+      <Modal
+        isOpen={recordSaleOpen}
+        onClose={() => setRecordSaleOpen(false)}
+        title="Record Sale"
+      >
+        <form onSubmit={handleRecordSale} className="flex flex-col gap-4">
+          <div className="space-y-1">
+            <Label>Product</Label>
+            <Select name="productId" required>
+              {products.map((p) => (
+                <option key={p.id} value={p.id} disabled={p.stock === 0}>
+                  {p.name} (Stock: {p.stock}) - {formatCurrency(p.unitPrice)}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Quantity</Label>
+            <Input name="quantity" type="number" min="1" required defaultValue={1} />
+          </div>
+          <div className="mt-4 flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => setRecordSaleOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Record Sale"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

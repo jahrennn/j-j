@@ -6,6 +6,7 @@ interface AuthState {
   isAuthenticated: boolean
   signIn: (payload: LoginPayload) => Promise<void>
   signOut: () => void
+  updateUsername: (username: string) => void
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined)
@@ -36,9 +37,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(STORAGE_KEY)
   }
 
+  function updateUsername(nextUsername: string) {
+    setUsername(nextUsername)
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const session = JSON.parse(raw) as { username: string; token: string }
+        sessionStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ ...session, username: nextUsername }),
+        )
+      }
+    } catch {
+      // ignore malformed session
+    }
+  }
+
   return (
     <AuthContext.Provider
-      value={{ username, isAuthenticated: Boolean(username), signIn, signOut }}
+      value={{
+        username,
+        isAuthenticated: Boolean(username),
+        signIn,
+        signOut,
+        updateUsername,
+      }}
     >
       {children}
     </AuthContext.Provider>

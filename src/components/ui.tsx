@@ -3,8 +3,11 @@ import {
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type InputHTMLAttributes,
+  type SelectHTMLAttributes,
+  type LabelHTMLAttributes,
 } from "react"
 import { cn } from "@/lib/utils"
+import { X } from "lucide-react"
 
 type ButtonVariant = "primary" | "accent" | "outline" | "ghost"
 type ButtonSize = "sm" | "md" | "icon"
@@ -74,7 +77,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
 export function Label({
   className,
   ...props
-}: HTMLAttributes<HTMLLabelElement>) {
+}: LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label
       className={cn(
@@ -100,3 +103,52 @@ export function Badge({
     />
   )
 }
+
+export const Select = forwardRef<
+  HTMLSelectElement,
+  SelectHTMLAttributes<HTMLSelectElement>
+>(({ className, ...props }, ref) => (
+  <select
+    ref={ref}
+    className={cn(
+      "h-10 w-full appearance-none rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring disabled:opacity-50",
+      className,
+    )}
+    {...props}
+  />
+))
+Select.displayName = "Select"
+
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  title: string
+  children: React.ReactNode
+}) {
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-background/80 backdrop-blur-sm">
+      <div className="relative w-full max-w-md p-4">
+        <Card className="relative w-full shadow-lg">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <h3 className="font-semibold text-foreground">{title}</h3>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-1 hover:bg-muted text-muted-foreground transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="p-5">{children}</div>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
