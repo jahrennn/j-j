@@ -59,12 +59,6 @@ pnpm dev
 
 App runs at `http://localhost:3000`.
 
-### Default login
-
-| Username | Password  |
-|----------|-----------|
-| admin    | admin123  |
-
 ## Environment variables
 
 | Variable | Description |
