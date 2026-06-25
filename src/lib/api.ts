@@ -193,6 +193,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(await parseErrorMessage(res))
   }
 
+  // 204 No Content or empty body — don't try to parse JSON
+  const contentLength = res.headers.get("content-length")
+  if (res.status === 204 || contentLength === "0") {
+    return undefined as unknown as T
+  }
+
   return res.json() as Promise<T>
 }
 
@@ -330,7 +336,7 @@ export async function updateProduct(productId: string, payload: Omit<Product, "i
   })
 }
 
-export async function deleteProduct(productId: string): Promise<void> {
+export async function deleteProduct(productId: string, password: string): Promise<void> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
     const index = MOCK_PRODUCTS.findIndex(p => p.id === productId)
@@ -339,5 +345,19 @@ export async function deleteProduct(productId: string): Promise<void> {
   }
   await request<void>(`/inventory/products/${productId}`, {
     method: "DELETE",
+    body: JSON.stringify({ password }),
+  })
+}
+
+export async function deleteSale(saleId: string, password: string): Promise<void> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 300))
+    const index = MOCK_SALES.findIndex(s => s.id === saleId)
+    if (index !== -1) MOCK_SALES.splice(index, 1)
+    return
+  }
+  await request<void>(`/sales/${saleId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ password }),
   })
 }

@@ -93,11 +93,6 @@ export function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-5 text-center text-xs text-muted-foreground">
-            Demo credentials {"\u2014"} username:{" "}
-            <span className="font-medium text-foreground">admin</span>, password:{" "}
-            <span className="font-medium text-foreground">admin123</span>
-          </p>
         </Card>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">

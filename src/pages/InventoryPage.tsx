@@ -1,5 +1,5 @@
-import { useEffect, useState, FormEvent } from "react"
-import { Flame, Cylinder, Package, Loader2, Plus, Edit2 } from "lucide-react"
+import { useEffect, useState, FormEvent, useRef } from "react"
+import { Flame, Cylinder, Package, Loader2, Plus, Edit2, Trash2, AlertTriangle } from "lucide-react"
 import { Badge, Card, Button, Modal, Input, Label, Select } from "@/components/ui"
 import { getInventory, createProduct, updateProduct, deleteProduct, type Product, type ItemType } from "@/lib/api"
 import { cn, formatCurrency } from "@/lib/utils"
@@ -11,6 +11,13 @@ export function InventoryPage() {
 
   const [addProductOpen, setAddProductOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<Product | null>(null)
+
+  // Delete modal state (separate from edit)
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
+  const [deletePassword, setDeletePassword] = useState("")
+  const [deleteError, setDeleteError] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
+  const passwordInputRef = useRef<HTMLInputElement>(null)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -30,6 +37,15 @@ export function InventoryPage() {
   useEffect(() => {
     fetchInventory()
   }, [])
+
+  // Focus password input when delete modal opens
+  useEffect(() => {
+    if (deleteTarget) {
+      setDeletePassword("")
+      setDeleteError("")
+      setTimeout(() => passwordInputRef.current?.focus(), 100)
+    }
+  }, [deleteTarget])
 
   const handleAddProduct = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -74,19 +90,19 @@ export function InventoryPage() {
     }
   }
 
-  const handleDeleteProduct = async () => {
-    if (!editProduct) return
-    if (!window.confirm(`Are you sure you want to delete ${editProduct.name}?`)) return
-    
-    setIsSubmitting(true)
+  const handleDeleteProduct = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!deleteTarget) return
+    setIsDeleting(true)
+    setDeleteError("")
     try {
-      await deleteProduct(editProduct.id)
-      setEditProduct(null)
+      await deleteProduct(deleteTarget.id, deletePassword)
+      setDeleteTarget(null)
       fetchInventory()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete product")
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete product")
     } finally {
-      setIsSubmitting(false)
+      setIsDeleting(false)
     }
   }
 
@@ -191,9 +207,24 @@ export function InventoryPage() {
                         </Badge>
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <Button variant="ghost" size="icon" onClick={() => setEditProduct(p)}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
+                        <div className="inline-flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => setEditProduct(p)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => setDeleteTarget(p)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -204,6 +235,7 @@ export function InventoryPage() {
         </div>
       </Card>
 
+      {/* Add Product Modal */}
       <Modal
         isOpen={addProductOpen}
         onClose={() => setAddProductOpen(false)}
@@ -244,6 +276,7 @@ export function InventoryPage() {
         </form>
       </Modal>
 
+      {/* Edit Product Modal */}
       <Modal
         isOpen={!!editProduct}
         onClose={() => setEditProduct(null)}
@@ -286,23 +319,84 @@ export function InventoryPage() {
               defaultValue={editProduct?.unitPrice || 0}
             />
           </div>
-          <div className="mt-4 flex items-center justify-between">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDeleteProduct}
-              disabled={isSubmitting}
-            >
-              Delete Product
+          <div className="mt-4 flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => setEditProduct(null)}>
+              Cancel
             </Button>
-            <div className="flex gap-3">
-              <Button type="button" variant="ghost" onClick={() => setEditProduct(null)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
-              </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Product Confirmation Modal */}
+      <Modal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete Product"
+      >
+        <form onSubmit={handleDeleteProduct} className="flex flex-col gap-4">
+          {/* Warning banner */}
+          <div className="flex items-start gap-3 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-semibold">This action cannot be undone.</p>
+              <p className="mt-0.5 text-destructive/80">
+                You are about to permanently delete{" "}
+                <span className="font-semibold">{deleteTarget?.name}</span>.
+                Existing sales records will not be affected.
+              </p>
             </div>
+          </div>
+
+          {/* Product details */}
+          <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm space-y-1">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">SKU</span>
+              <span className="font-mono font-medium">{deleteTarget?.sku}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Type</span>
+              <span className="font-medium">{deleteTarget?.type}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Stock</span>
+              <span className="font-medium">{deleteTarget?.stock} units</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Unit Price</span>
+              <span className="font-medium">{deleteTarget ? formatCurrency(deleteTarget.unitPrice) : ""}</span>
+            </div>
+          </div>
+
+          {/* Password field */}
+          <div className="space-y-1">
+            <Label htmlFor="deleteProductPassword">Admin Password</Label>
+            <Input
+              id="deleteProductPassword"
+              ref={passwordInputRef}
+              type="password"
+              placeholder="Enter your password to confirm"
+              value={deletePassword}
+              onChange={(e) => {
+                setDeletePassword(e.target.value)
+                setDeleteError("")
+              }}
+              required
+            />
+            {deleteError && (
+              <p className="mt-1 text-xs text-destructive">{deleteError}</p>
+            )}
+          </div>
+
+          <div className="mt-2 flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="destructive" disabled={isDeleting || !deletePassword}>
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Product"}
+            </Button>
           </div>
         </form>
       </Modal>

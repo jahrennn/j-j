@@ -1,4 +1,4 @@
-import { useEffect, useState, FormEvent } from "react"
+import { useEffect, useState, FormEvent, useRef } from "react"
 import {
   DollarSign,
   ShoppingCart,
@@ -8,6 +8,9 @@ import {
   Flame,
   Cylinder,
   Plus,
+  Download,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react"
 import { Badge, Button, Card, Modal, Label, Input, Select } from "@/components/ui"
 import { DateRangePicker } from "@/components/DateRangePicker"
@@ -15,15 +18,17 @@ import {
   getSales,
   getInventory,
   createSale,
+  deleteSale,
   type DateRange,
   type SalesResponse,
+  type SaleRecord,
   type Product,
 } from "@/lib/api"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
 function toLocalDateString(d: Date): string {
-  const offset = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - offset).toISOString().slice(0, 10);
+  const offset = d.getTimezoneOffset() * 60000
+  return new Date(d.getTime() - offset).toISOString().slice(0, 10)
 }
 
 function defaultRange(): DateRange {
@@ -69,6 +74,13 @@ export function SalesPage() {
   const [recordSaleOpen, setRecordSaleOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Delete modal state
+  const [deleteTarget, setDeleteTarget] = useState<SaleRecord | null>(null)
+  const [deletePassword, setDeletePassword] = useState("")
+  const [deleteError, setDeleteError] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
+  const passwordInputRef = useRef<HTMLInputElement>(null)
+
   const fetchSales = async () => {
     try {
       setLoading(true)
@@ -89,6 +101,15 @@ export function SalesPage() {
     getInventory().then((res) => setProducts(res.products)).catch(console.error)
   }, [])
 
+  // Focus password input when delete modal opens
+  useEffect(() => {
+    if (deleteTarget) {
+      setDeletePassword("")
+      setDeleteError("")
+      setTimeout(() => passwordInputRef.current?.focus(), 100)
+    }
+  }, [deleteTarget])
+
   const handleRecordSale = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -96,17 +117,57 @@ export function SalesPage() {
       const formData = new FormData(e.currentTarget)
       const productId = formData.get("productId") as string
       const quantity = parseInt(formData.get("quantity") as string, 10)
-      
+
       await createSale({ productId, quantity })
       setRecordSaleOpen(false)
       fetchSales()
-      // Re-fetch inventory in the background to get updated stock levels
       getInventory().then((res) => setProducts(res.products)).catch(console.error)
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to record sale")
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleDeleteSale = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!deleteTarget) return
+    setIsDeleting(true)
+    setDeleteError("")
+    try {
+      await deleteSale(deleteTarget.id, deletePassword)
+      setDeleteTarget(null)
+      fetchSales()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete sale")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleExportCSV = () => {
+    if (!data || data.records.length === 0) return
+
+    const headers = ["Date", "Transaction ID", "Item", "Quantity", "Total Amount (PHP)"]
+    const rows = data.records.map((r) => [
+      r.date,
+      r.transactionId,
+      r.item,
+      String(r.quantity),
+      r.totalAmount.toFixed(2),
+    ])
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${cell}"`).join(","))
+      .join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `sales_${range.startDate}_to_${range.endDate}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -122,6 +183,14 @@ export function SalesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={handleExportCSV}
+            disabled={!data || data.records.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
           <Button variant="outline" onClick={() => window.print()}>
             <Printer className="h-4 w-4" />
             Print Report
@@ -189,12 +258,13 @@ export function SalesPage() {
                 <th className="px-5 py-3 text-right font-medium">
                   Total Amount
                 </th>
+                <th className="px-5 py-3 font-medium" />
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center">
+                  <td colSpan={6} className="px-5 py-12 text-center">
                     <span className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading sales records...
@@ -238,13 +308,23 @@ export function SalesPage() {
                       <td className="px-5 py-3 text-right font-medium tabular-nums text-foreground">
                         {formatCurrency(r.totalAmount)}
                       </td>
+                      <td className="px-5 py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteTarget(r)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
                     </tr>
                   )
                 })
               ) : (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
                     No sales records found for the selected date range.
@@ -256,6 +336,7 @@ export function SalesPage() {
         </div>
       </Card>
 
+      {/* Record Sale Modal */}
       <Modal
         isOpen={recordSaleOpen}
         onClose={() => setRecordSaleOpen(false)}
@@ -282,6 +363,76 @@ export function SalesPage() {
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Record Sale"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Sale Confirmation Modal */}
+      <Modal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete Sale Record"
+      >
+        <form onSubmit={handleDeleteSale} className="flex flex-col gap-4">
+          {/* Warning banner */}
+          <div className="flex items-start gap-3 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-semibold">This action cannot be undone.</p>
+              <p className="mt-0.5 text-destructive/80">
+                You are about to permanently delete transaction{" "}
+                <span className="font-mono font-semibold">{deleteTarget?.transactionId}</span>.
+              </p>
+            </div>
+          </div>
+
+          {/* Sale details */}
+          <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm space-y-1">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Date</span>
+              <span className="font-medium">{deleteTarget ? formatDate(deleteTarget.date) : ""}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Item</span>
+              <span className="font-medium">{deleteTarget?.item}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Quantity</span>
+              <span className="font-medium">{deleteTarget?.quantity}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total</span>
+              <span className="font-semibold">{deleteTarget ? formatCurrency(deleteTarget.totalAmount) : ""}</span>
+            </div>
+          </div>
+
+          {/* Password field */}
+          <div className="space-y-1">
+            <Label htmlFor="deletePassword">Admin Password</Label>
+            <Input
+              id="deletePassword"
+              ref={passwordInputRef}
+              type="password"
+              placeholder="Enter your password to confirm"
+              value={deletePassword}
+              onChange={(e) => {
+                setDeletePassword(e.target.value)
+                setDeleteError("")
+              }}
+              required
+            />
+            {deleteError && (
+              <p className="mt-1 text-xs text-destructive">{deleteError}</p>
+            )}
+          </div>
+
+          <div className="mt-2 flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="destructive" disabled={isDeleting || !deletePassword}>
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Record"}
             </Button>
           </div>
         </form>

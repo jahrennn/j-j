@@ -5,7 +5,10 @@ import com.jjlpg.trading.dto.InventoryResponseDto;
 import com.jjlpg.trading.dto.ProductDto;
 import com.jjlpg.trading.dto.UpdateStockRequest;
 import com.jjlpg.trading.entity.Product;
+import com.jjlpg.trading.entity.User;
 import com.jjlpg.trading.repository.ProductRepository;
+import com.jjlpg.trading.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,9 +19,15 @@ import java.util.List;
 public class InventoryService {
 
     private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public InventoryService(ProductRepository productRepository) {
+    public InventoryService(ProductRepository productRepository,
+                            UserRepository userRepository,
+                            PasswordEncoder passwordEncoder) {
         this.productRepository = productRepository;
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional(readOnly = true)
@@ -62,7 +71,12 @@ public class InventoryService {
     }
 
     @Transactional
-    public void deleteProduct(Long productId) {
+    public void deleteProduct(Long productId, String password) {
+        User admin = userRepository.findByUsername("admin")
+                .orElseThrow(() -> new IllegalStateException("Admin user not found"));
+        if (!passwordEncoder.matches(password, admin.getPasswordHash())) {
+            throw new IllegalArgumentException("Incorrect password");
+        }
         if (!productRepository.existsById(productId)) {
             throw new IllegalArgumentException("Product not found");
         }

@@ -3,8 +3,11 @@ package com.jjlpg.trading.service;
 import com.jjlpg.trading.dto.*;
 import com.jjlpg.trading.entity.Sale;
 import com.jjlpg.trading.entity.Product;
+import com.jjlpg.trading.entity.User;
 import com.jjlpg.trading.repository.ProductRepository;
 import com.jjlpg.trading.repository.SaleRepository;
+import com.jjlpg.trading.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,10 +21,15 @@ public class SalesService {
 
     private final SaleRepository saleRepository;
     private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public SalesService(SaleRepository saleRepository, ProductRepository productRepository) {
+    public SalesService(SaleRepository saleRepository, ProductRepository productRepository,
+                        UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -52,6 +60,20 @@ public class SalesService {
         List<Sale> sales = saleRepository.findByDateRange(startDate, endDate);
         List<SaleRecordDto> records = sales.stream().map(this::toDto).toList();
         return new SalesResponseDto(summarize(records), records);
+    }
+
+    @Transactional
+    public void deleteSale(Long saleId, String password) {
+        // Verify admin password before deleting
+        User admin = userRepository.findByUsername("admin")
+                .orElseThrow(() -> new IllegalStateException("Admin user not found"));
+        if (!passwordEncoder.matches(password, admin.getPasswordHash())) {
+            throw new IllegalArgumentException("Incorrect password");
+        }
+        if (!saleRepository.existsById(saleId)) {
+            throw new IllegalArgumentException("Sale record not found");
+        }
+        saleRepository.deleteById(saleId);
     }
 
     private SaleRecordDto toDto(Sale sale) {

@@ -1,11 +1,13 @@
 package com.jjlpg.trading.controller;
 
 import com.jjlpg.trading.dto.CreateProductRequest;
+import com.jjlpg.trading.dto.DeleteProductRequest;
 import com.jjlpg.trading.dto.InventoryResponseDto;
 import com.jjlpg.trading.dto.ProductDto;
 import com.jjlpg.trading.dto.UpdateStockRequest;
 import com.jjlpg.trading.service.InventoryService;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -39,8 +41,9 @@ public class InventoryController {
     }
 
     @DeleteMapping("/products/{id}")
-    public org.springframework.http.ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
-        inventoryService.deleteProduct(id);
-        return org.springframework.http.ResponseEntity.noContent().build();
+    public ResponseEntity<Void> deleteProduct(@PathVariable Long id,
+                                              @Valid @RequestBody DeleteProductRequest request) {
+        inventoryService.deleteProduct(id, request.password());
+        return ResponseEntity.noContent().build();
     }
 }
