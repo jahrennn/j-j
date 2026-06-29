@@ -8,6 +8,8 @@ public record SaleRecordDto(
         String transactionId,
         String item,
         int quantity,
-        BigDecimal totalAmount
+        BigDecimal totalAmount,
+        String buyerName,
+        String address
 ) {
 }

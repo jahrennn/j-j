@@ -50,6 +50,13 @@ public class SalesService {
         sale.setItemType(product.getType());
         sale.setQuantity(request.quantity());
         sale.setTotalAmount(product.getUnitPrice().multiply(BigDecimal.valueOf(request.quantity())));
+        sale.setBuyerName(request.buyerName());
+        
+        if ("Pick up".equalsIgnoreCase(request.deliveryMethod())) {
+            sale.setAddress("Pick up");
+        } else {
+            sale.setAddress(request.address() != null && !request.address().isBlank() ? request.address() : "Unknown");
+        }
 
         Sale savedSale = saleRepository.save(sale);
         return toDto(savedSale);
@@ -83,7 +90,9 @@ public class SalesService {
                 sale.getTransactionId(),
                 sale.getItemType().getLabel(),
                 sale.getQuantity(),
-                sale.getTotalAmount());
+                sale.getTotalAmount(),
+                sale.getBuyerName(),
+                sale.getAddress());
     }
 
     private SalesSummaryDto summarize(List<SaleRecordDto> records) {

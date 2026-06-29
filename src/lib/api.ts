@@ -19,6 +19,8 @@ export interface SaleRecord {
   item: ItemType
   quantity: number
   totalAmount: number
+  buyerName: string
+  address: string
 }
 
 export interface SalesSummary {
@@ -118,6 +120,8 @@ function seededSales(): SaleRecord[] {
       item,
       quantity,
       totalAmount: unit * quantity,
+      buyerName: `Customer ${i}`,
+      address: i % 3 === 0 ? "Pick up" : `123 Demo St, Address ${i}`
     })
   }
   return records
@@ -266,7 +270,7 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
   })
 }
 
-export async function createSale(payload: { productId: string; quantity: number }): Promise<SaleRecord> {
+export async function createSale(payload: { productId: string; quantity: number; buyerName: string; address: string; deliveryMethod: string }): Promise<SaleRecord> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
     const product = MOCK_PRODUCTS.find(p => p.id === payload.productId)
@@ -275,13 +279,17 @@ export async function createSale(payload: { productId: string; quantity: number 
     
     product.stock -= payload.quantity
     
+    const address = payload.deliveryMethod === "Pick up" ? "Pick up" : (payload.address || "Unknown")
+
     const newSale: SaleRecord = {
       id: `sale-mock-${Date.now()}`,
       date: new Date().toISOString().slice(0, 10),
       transactionId: `TXN-${Math.floor(Math.random() * 100000)}`,
       item: product.type,
       quantity: payload.quantity,
-      totalAmount: product.unitPrice * payload.quantity
+      totalAmount: product.unitPrice * payload.quantity,
+      buyerName: payload.buyerName,
+      address: address
     }
     MOCK_SALES.unshift(newSale)
     return newSale

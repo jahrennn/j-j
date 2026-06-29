@@ -73,6 +73,7 @@ export function SalesPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [recordSaleOpen, setRecordSaleOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [deliveryMethod, setDeliveryMethod] = useState("Pick up")
 
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<SaleRecord | null>(null)
@@ -117,9 +118,14 @@ export function SalesPage() {
       const formData = new FormData(e.currentTarget)
       const productId = formData.get("productId") as string
       const quantity = parseInt(formData.get("quantity") as string, 10)
+      const buyerName = formData.get("buyerName") as string
+      const address = formData.get("address") as string || ""
+      const selectedDeliveryMethod = formData.get("deliveryMethod") as string
 
-      await createSale({ productId, quantity })
+      await createSale({ productId, quantity, buyerName, address, deliveryMethod: selectedDeliveryMethod })
       setRecordSaleOpen(false)
+      // reset form
+      setDeliveryMethod("Pick up")
       fetchSales()
       getInventory().then((res) => setProducts(res.products)).catch(console.error)
     } catch (err) {
@@ -148,13 +154,15 @@ export function SalesPage() {
   const handleExportCSV = () => {
     if (!data || data.records.length === 0) return
 
-    const headers = ["Date", "Transaction ID", "Item", "Quantity", "Total Amount (PHP)"]
+    const headers = ["Date", "Transaction ID", "Buyer Name", "Item", "Quantity", "Total Amount (PHP)", "Address"]
     const rows = data.records.map((r) => [
       r.date,
       r.transactionId,
+      r.buyerName || "",
       r.item,
       String(r.quantity),
       r.totalAmount.toFixed(2),
+      r.address || "",
     ])
 
     const csvContent = [headers, ...rows]
@@ -252,8 +260,9 @@ export function SalesPage() {
             <thead>
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-5 py-3 font-medium">Date</th>
-                <th className="px-5 py-3 font-medium">Transaction ID</th>
+                <th className="px-5 py-3 font-medium">Buyer</th>
                 <th className="px-5 py-3 font-medium">Item</th>
+                <th className="px-5 py-3 font-medium">Address</th>
                 <th className="px-5 py-3 text-right font-medium">Quantity</th>
                 <th className="px-5 py-3 text-right font-medium">
                   Total Amount
@@ -264,7 +273,7 @@ export function SalesPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center">
+                  <td colSpan={7} className="px-5 py-12 text-center">
                     <span className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading sales records...
@@ -281,9 +290,12 @@ export function SalesPage() {
                     >
                       <td className="whitespace-nowrap px-5 py-3 text-foreground">
                         {formatDate(r.date)}
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {r.transactionId}
+                        </div>
                       </td>
-                      <td className="whitespace-nowrap px-5 py-3 font-mono text-xs text-muted-foreground">
-                        {r.transactionId}
+                      <td className="whitespace-nowrap px-5 py-3 text-foreground">
+                        {r.buyerName || "-"}
                       </td>
                       <td className="px-5 py-3">
                         <Badge
@@ -301,6 +313,9 @@ export function SalesPage() {
                           )}
                           {r.item}
                         </Badge>
+                      </td>
+                      <td className="px-5 py-3 text-foreground max-w-[150px] truncate" title={r.address}>
+                        {r.address || "-"}
                       </td>
                       <td className="px-5 py-3 text-right tabular-nums text-foreground">
                         {r.quantity}
@@ -324,7 +339,7 @@ export function SalesPage() {
               ) : (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
                     No sales records found for the selected date range.
@@ -339,10 +354,18 @@ export function SalesPage() {
       {/* Record Sale Modal */}
       <Modal
         isOpen={recordSaleOpen}
-        onClose={() => setRecordSaleOpen(false)}
+        onClose={() => {
+          setRecordSaleOpen(false)
+          setDeliveryMethod("Pick up")
+        }}
         title="Record Sale"
       >
         <form onSubmit={handleRecordSale} className="flex flex-col gap-4">
+          <div className="space-y-1">
+            <Label>Buyer Name</Label>
+            <Input name="buyerName" required placeholder="Enter buyer's name" />
+          </div>
+
           <div className="space-y-1">
             <Label>Product</Label>
             <Select name="productId" required>
@@ -353,12 +376,37 @@ export function SalesPage() {
               ))}
             </Select>
           </div>
+          
           <div className="space-y-1">
             <Label>Quantity</Label>
             <Input name="quantity" type="number" min="1" required defaultValue={1} />
           </div>
+
+          <div className="space-y-1">
+            <Label>Delivery Method</Label>
+            <Select 
+              name="deliveryMethod" 
+              required 
+              value={deliveryMethod}
+              onChange={(e) => setDeliveryMethod(e.target.value)}
+            >
+              <option value="Pick up">Pick up</option>
+              <option value="Deliver">Deliver</option>
+            </Select>
+          </div>
+
+          {deliveryMethod === "Deliver" && (
+            <div className="space-y-1">
+              <Label>Address</Label>
+              <Input name="address" required placeholder="Enter delivery address" />
+            </div>
+          )}
+
           <div className="mt-4 flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={() => setRecordSaleOpen(false)}>
+            <Button type="button" variant="ghost" onClick={() => {
+              setRecordSaleOpen(false)
+              setDeliveryMethod("Pick up")
+            }}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
