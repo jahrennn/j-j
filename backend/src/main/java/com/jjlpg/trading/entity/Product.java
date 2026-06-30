@@ -31,6 +31,9 @@ public class Product {
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal capital = BigDecimal.ZERO;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -85,5 +88,13 @@ public class Product {
 
     public void setUnitPrice(BigDecimal unitPrice) {
         this.unitPrice = unitPrice;
+    }
+
+    public BigDecimal getCapital() {
+        return capital;
+    }
+
+    public void setCapital(BigDecimal capital) {
+        this.capital = capital;
     }
 }

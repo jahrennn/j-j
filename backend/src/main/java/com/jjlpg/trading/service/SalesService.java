@@ -15,6 +15,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class SalesService {
@@ -48,8 +51,11 @@ public class SalesService {
         sale.setSaleDate(LocalDate.now());
         sale.setTransactionId("TXN-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         sale.setItemType(product.getType());
+        sale.setItemName(product.getName());
+        sale.setProductId(product.getId());
         sale.setQuantity(request.quantity());
         sale.setTotalAmount(product.getUnitPrice().multiply(BigDecimal.valueOf(request.quantity())));
+        sale.setCapital(product.getCapital().multiply(BigDecimal.valueOf(request.quantity())));
         sale.setBuyerName(request.buyerName());
         
         if ("Pick up".equalsIgnoreCase(request.deliveryMethod())) {
@@ -59,13 +65,25 @@ public class SalesService {
         }
 
         Sale savedSale = saleRepository.save(sale);
-        return toDto(savedSale);
+        // Return with dynamic profit using current product capital
+        return toDto(savedSale, product);
     }
 
     @Transactional(readOnly = true)
     public SalesResponseDto getSales(LocalDate startDate, LocalDate endDate) {
         List<Sale> sales = saleRepository.findByDateRange(startDate, endDate);
-        List<SaleRecordDto> records = sales.stream().map(this::toDto).toList();
+
+        // Fetch current capitals for all linked products in one query
+        Set<Long> productIds = sales.stream()
+                .filter(s -> s.getProductId() != null)
+                .map(Sale::getProductId)
+                .collect(Collectors.toSet());
+        Map<Long, Product> productMap = productRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, p -> p));
+
+        List<SaleRecordDto> records = sales.stream()
+                .map(s -> toDto(s, productMap.get(s.getProductId())))
+                .toList();
         return new SalesResponseDto(summarize(records), records);
     }
 
@@ -83,14 +101,31 @@ public class SalesService {
         saleRepository.deleteById(saleId);
     }
 
-    private SaleRecordDto toDto(Sale sale) {
+    /**
+     * Builds a SaleRecordDto. If a current product is provided, profit is recalculated
+     * dynamically using the product's current capital (reflects inventory capital updates).
+     * Falls back to the snapshotted capital stored on the sale for old records.
+     */
+    private SaleRecordDto toDto(Sale sale, Product currentProduct) {
+        BigDecimal capital;
+        if (currentProduct != null) {
+            capital = currentProduct.getCapital().multiply(BigDecimal.valueOf(sale.getQuantity()));
+        } else {
+            capital = sale.getCapital(); // fallback for old records with no product_id
+        }
+        String displayName = (sale.getItemName() != null && !sale.getItemName().equals("Unknown Product"))
+                ? sale.getItemName()
+                : sale.getItemType().getLabel();
         return new SaleRecordDto(
                 String.valueOf(sale.getId()),
                 sale.getSaleDate().toString(),
                 sale.getTransactionId(),
                 sale.getItemType().getLabel(),
+                displayName,
                 sale.getQuantity(),
                 sale.getTotalAmount(),
+                capital,
+                sale.getTotalAmount().subtract(capital),
                 sale.getBuyerName(),
                 sale.getAddress());
     }
@@ -103,6 +138,9 @@ public class SalesService {
         BigDecimal average = totalOrders == 0
                 ? BigDecimal.ZERO
                 : totalRevenue.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP);
-        return new SalesSummaryDto(totalRevenue, totalOrders, average);
+        BigDecimal totalProfit = records.stream()
+                .map(SaleRecordDto::profit)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new SalesSummaryDto(totalRevenue, totalOrders, average, totalProfit);
     }
 }

@@ -17,8 +17,11 @@ export interface SaleRecord {
   date: string
   transactionId: string
   item: ItemType
+  itemName: string
   quantity: number
   totalAmount: number
+  capital: number
+  profit: number
   buyerName: string
   address: string
 }
@@ -27,6 +30,7 @@ export interface SalesSummary {
   totalRevenue: number
   totalOrders: number
   averageTransactionValue: number
+  totalProfit: number
 }
 
 export interface SalesResponse {
@@ -46,6 +50,7 @@ export interface Product {
   type: ItemType
   stock: number
   unitPrice: number
+  capital: number
 }
 
 export interface InventoryResponse {
@@ -89,11 +94,11 @@ const REFILL_PRICE = 950
 const TANK_PRICE = 2800
 
 const MOCK_PRODUCTS: Product[] = [
-  { id: "1", name: "LPG Refill (11kg)", sku: "RF-11", type: "LPG Refill", stock: 142, unitPrice: 950 },
-  { id: "2", name: "LPG Refill (22kg)", sku: "RF-22", type: "LPG Refill", stock: 64, unitPrice: 1850 },
-  { id: "3", name: "LPG Tank (11kg)", sku: "TK-11", type: "LPG Tank", stock: 38, unitPrice: 2800 },
-  { id: "4", name: "LPG Tank (22kg)", sku: "TK-22", type: "LPG Tank", stock: 12, unitPrice: 4600 },
-  { id: "5", name: "LPG Tank (50kg)", sku: "TK-50", type: "LPG Tank", stock: 6, unitPrice: 9200 },
+  { id: "1", name: "LPG Refill (11kg)", sku: "RF-11", type: "LPG Refill", stock: 142, unitPrice: 950, capital: 800 },
+  { id: "2", name: "LPG Refill (22kg)", sku: "RF-22", type: "LPG Refill", stock: 64, unitPrice: 1850, capital: 1600 },
+  { id: "3", name: "LPG Tank (11kg)", sku: "TK-11", type: "LPG Tank", stock: 38, unitPrice: 2800, capital: 2500 },
+  { id: "4", name: "LPG Tank (22kg)", sku: "TK-22", type: "LPG Tank", stock: 12, unitPrice: 4600, capital: 4200 },
+  { id: "5", name: "LPG Tank (50kg)", sku: "TK-50", type: "LPG Tank", stock: 6, unitPrice: 9200, capital: 8500 },
 ]
 
 const MOCK_SETTINGS: SettingsResponse = {
@@ -120,6 +125,8 @@ function seededSales(): SaleRecord[] {
       item,
       quantity,
       totalAmount: unit * quantity,
+      capital: (unit - 100) * quantity,
+      profit: 100 * quantity,
       buyerName: `Customer ${i}`,
       address: i % 3 === 0 ? "Pick up" : `123 Demo St, Address ${i}`
     })
@@ -140,11 +147,13 @@ function filterByRange(records: SaleRecord[], range?: DateRange): SaleRecord[] {
 
 function summarize(records: SaleRecord[]): SalesSummary {
   const totalRevenue = records.reduce((sum, r) => sum + r.totalAmount, 0)
+  const totalProfit = records.reduce((sum, r) => sum + r.profit, 0)
   const totalOrders = records.length
   return {
     totalRevenue,
     totalOrders,
     averageTransactionValue: totalOrders ? totalRevenue / totalOrders : 0,
+    totalProfit,
   }
 }
 
@@ -286,8 +295,11 @@ export async function createSale(payload: { productId: string; quantity: number;
       date: new Date().toISOString().slice(0, 10),
       transactionId: `TXN-${Math.floor(Math.random() * 100000)}`,
       item: product.type,
+      itemName: product.name,
       quantity: payload.quantity,
       totalAmount: product.unitPrice * payload.quantity,
+      capital: product.capital * payload.quantity,
+      profit: (product.unitPrice - product.capital) * payload.quantity,
       buyerName: payload.buyerName,
       address: address
     }
@@ -341,6 +353,21 @@ export async function updateProduct(productId: string, payload: Omit<Product, "i
   return request<Product>(`/inventory/products/${productId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  })
+}
+
+export async function restockProduct(productId: string, quantity: number, capital: number): Promise<Product> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 300))
+    const product = MOCK_PRODUCTS.find(p => p.id === productId)
+    if (!product) throw new Error("Product not found")
+    product.stock += quantity
+    product.capital = capital
+    return product
+  }
+  return request<Product>(`/inventory/products/${productId}/restock`, {
+    method: "POST",
+    body: JSON.stringify({ quantity, capital }),
   })
 }
 

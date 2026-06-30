@@ -23,5 +23,9 @@ public record CreateProductRequest(
 
         @NotNull(message = "Unit price is required")
         @Min(value = 0, message = "Unit price cannot be negative")
-        BigDecimal unitPrice
+        BigDecimal unitPrice,
+
+        @NotNull(message = "Capital is required")
+        @Min(value = 0, message = "Capital cannot be negative")
+        BigDecimal capital
 ) {}

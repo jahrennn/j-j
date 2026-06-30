@@ -35,6 +35,11 @@ public class InventoryController {
         return inventoryService.updateStock(id, request);
     }
 
+    @PostMapping("/products/{id}/restock")
+    public ProductDto restockProduct(@PathVariable Long id, @Valid @RequestBody com.jjlpg.trading.dto.RestockRequest request) {
+        return inventoryService.restockProduct(id, request);
+    }
+
     @PutMapping("/products/{id}")
     public ProductDto updateProduct(@PathVariable Long id, @Valid @RequestBody com.jjlpg.trading.dto.UpdateProductRequest request) {
         return inventoryService.updateProduct(id, request);

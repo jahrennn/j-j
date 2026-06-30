@@ -8,6 +8,7 @@ public record ProductDto(
         String sku,
         String type,
         int stock,
-        BigDecimal unitPrice
+        BigDecimal unitPrice,
+        BigDecimal capital
 ) {
 }

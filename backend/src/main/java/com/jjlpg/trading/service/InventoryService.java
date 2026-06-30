@@ -47,6 +47,7 @@ public class InventoryService {
         product.setType(request.type());
         product.setStock(request.stock());
         product.setUnitPrice(request.unitPrice());
+        product.setCapital(request.capital());
         return toDto(productRepository.save(product));
     }
 
@@ -59,6 +60,15 @@ public class InventoryService {
     }
 
     @Transactional
+    public ProductDto restockProduct(Long productId, com.jjlpg.trading.dto.RestockRequest request) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+        product.setStock(product.getStock() + request.quantity());
+        product.setCapital(request.capital());
+        return toDto(productRepository.save(product));
+    }
+
+    @Transactional
     public ProductDto updateProduct(Long productId, com.jjlpg.trading.dto.UpdateProductRequest request) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
@@ -67,6 +77,7 @@ public class InventoryService {
         product.setType(request.type());
         product.setStock(request.stock());
         product.setUnitPrice(request.unitPrice());
+        product.setCapital(request.capital());
         return toDto(productRepository.save(product));
     }
 
@@ -90,6 +101,7 @@ public class InventoryService {
                 product.getSku(),
                 product.getType().getLabel(),
                 product.getStock(),
-                product.getUnitPrice());
+                product.getUnitPrice(),
+                product.getCapital());
     }
 }

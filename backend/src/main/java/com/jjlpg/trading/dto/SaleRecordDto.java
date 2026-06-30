@@ -7,8 +7,11 @@ public record SaleRecordDto(
         String date,
         String transactionId,
         String item,
+        String itemName,
         int quantity,
         BigDecimal totalAmount,
+        BigDecimal capital,
+        BigDecimal profit,
         String buyerName,
         String address
 ) {

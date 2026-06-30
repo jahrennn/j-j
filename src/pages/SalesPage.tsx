@@ -63,6 +63,13 @@ const summaryCards = [
     format: (v: number) => formatCurrency(v),
     tint: "bg-success/15 text-success",
   },
+  {
+    key: "totalProfit" as const,
+    label: "Total Profit",
+    icon: DollarSign, // Or another icon like PiggyBank
+    format: (v: number) => formatCurrency(v),
+    tint: "bg-primary/10 text-primary",
+  },
 ]
 
 export function SalesPage() {
@@ -154,7 +161,7 @@ export function SalesPage() {
   const handleExportCSV = () => {
     if (!data || data.records.length === 0) return
 
-    const headers = ["Date", "Transaction ID", "Buyer Name", "Item", "Quantity", "Total Amount (PHP)", "Address"]
+    const headers = ["Date", "Transaction ID", "Buyer Name", "Item", "Quantity", "Total Amount (PHP)", "Capital (PHP)", "Profit (PHP)", "Address"]
     const rows = data.records.map((r) => [
       r.date,
       r.transactionId,
@@ -162,6 +169,8 @@ export function SalesPage() {
       r.item,
       String(r.quantity),
       r.totalAmount.toFixed(2),
+      r.capital.toFixed(2),
+      r.profit.toFixed(2),
       r.address || "",
     ])
 
@@ -216,7 +225,7 @@ export function SalesPage() {
       </Card>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map(({ key, label, icon: Icon, format, tint }) => (
           <Card key={key} className="p-5">
             <div className="flex items-center justify-between">
@@ -264,16 +273,16 @@ export function SalesPage() {
                 <th className="px-5 py-3 font-medium">Item</th>
                 <th className="px-5 py-3 font-medium">Address</th>
                 <th className="px-5 py-3 text-right font-medium">Quantity</th>
-                <th className="px-5 py-3 text-right font-medium">
-                  Total Amount
-                </th>
+                <th className="px-5 py-3 text-right font-medium">Capital</th>
+                <th className="px-5 py-3 text-right font-medium">Total Amount</th>
+                <th className="px-5 py-3 text-right font-medium">Profit</th>
                 <th className="px-5 py-3 font-medium" />
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center">
+                  <td colSpan={9} className="px-5 py-12 text-center">
                     <span className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading sales records...
@@ -311,7 +320,7 @@ export function SalesPage() {
                           ) : (
                             <Flame className="h-3.5 w-3.5" />
                           )}
-                          {r.item}
+                          {r.itemName}
                         </Badge>
                       </td>
                       <td className="px-5 py-3 text-foreground max-w-[150px] truncate" title={r.address}>
@@ -321,7 +330,13 @@ export function SalesPage() {
                         {r.quantity}
                       </td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums text-foreground">
+                        {formatCurrency(r.capital)}
+                      </td>
+                      <td className="px-5 py-3 text-right font-medium tabular-nums text-foreground">
                         {formatCurrency(r.totalAmount)}
+                      </td>
+                      <td className="px-5 py-3 text-right font-medium tabular-nums text-success">
+                        {formatCurrency(r.profit)}
                       </td>
                       <td className="px-5 py-3 text-right">
                         <Button
@@ -339,7 +354,7 @@ export function SalesPage() {
               ) : (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={9}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
                     No sales records found for the selected date range.

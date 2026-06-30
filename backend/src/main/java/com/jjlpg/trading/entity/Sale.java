@@ -31,11 +31,20 @@ public class Sale {
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
 
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal capital = BigDecimal.ZERO;
+
     @Column(name = "buyer_name", nullable = false)
     private String buyerName = "Unknown";
 
     @Column(nullable = false, length = 500)
     private String address = "Unknown";
+
+    @Column(name = "item_name", nullable = false, length = 255)
+    private String itemName = "Unknown Product";
+
+    @Column(name = "product_id")
+    private Long productId;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -103,6 +112,30 @@ public class Sale {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public BigDecimal getCapital() {
+        return capital;
+    }
+
+    public void setCapital(BigDecimal capital) {
+        this.capital = capital;
+    }
+
+    public String getItemName() {
+        return itemName;
+    }
+
+    public void setItemName(String itemName) {
+        this.itemName = itemName;
+    }
+
+    public Long getProductId() {
+        return productId;
+    }
+
+    public void setProductId(Long productId) {
+        this.productId = productId;
     }
 }
 

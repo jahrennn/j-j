@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent, useRef } from "react"
 import { Flame, Cylinder, Package, Loader2, Plus, Edit2, Trash2, AlertTriangle } from "lucide-react"
 import { Badge, Card, Button, Modal, Input, Label, Select } from "@/components/ui"
-import { getInventory, createProduct, updateProduct, deleteProduct, type Product, type ItemType } from "@/lib/api"
+import { getInventory, createProduct, updateProduct, deleteProduct, restockProduct, type Product, type ItemType } from "@/lib/api"
 import { cn, formatCurrency } from "@/lib/utils"
 
 export function InventoryPage() {
@@ -11,6 +11,8 @@ export function InventoryPage() {
 
   const [addProductOpen, setAddProductOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<Product | null>(null)
+
+  const [restockProductTarget, setRestockProductTarget] = useState<Product | null>(null)
 
   // Delete modal state (separate from edit)
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
@@ -58,6 +60,7 @@ export function InventoryPage() {
         type: formData.get("type") as ItemType,
         stock: parseInt(formData.get("stock") as string, 10),
         unitPrice: parseFloat(formData.get("unitPrice") as string),
+        capital: parseFloat(formData.get("capital") as string),
       })
       setAddProductOpen(false)
       fetchInventory()
@@ -80,11 +83,32 @@ export function InventoryPage() {
         type: formData.get("type") as ItemType,
         stock: parseInt(formData.get("stock") as string, 10),
         unitPrice: parseFloat(formData.get("unitPrice") as string),
+        capital: parseFloat(formData.get("capital") as string),
       })
       setEditProduct(null)
       fetchInventory()
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update product")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleRestockProduct = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!restockProductTarget) return
+    setIsSubmitting(true)
+    try {
+      const formData = new FormData(e.currentTarget)
+      await restockProduct(
+        restockProductTarget.id,
+        parseInt(formData.get("quantity") as string, 10),
+        parseFloat(formData.get("capital") as string)
+      )
+      setRestockProductTarget(null)
+      fetchInventory()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to restock product")
     } finally {
       setIsSubmitting(false)
     }
@@ -134,7 +158,8 @@ export function InventoryPage() {
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-5 py-3 font-medium">Product</th>
                 <th className="px-5 py-3 font-medium">SKU</th>
-                <th className="px-5 py-3 text-right font-medium">Unit Price</th>
+                <th className="px-5 py-3 text-right font-medium">Capital</th>
+                <th className="px-5 py-3 text-right font-medium">SRP</th>
                 <th className="px-5 py-3 text-right font-medium">Stock</th>
                 <th className="px-5 py-3 text-right font-medium">Status</th>
                 <th className="px-5 py-3 text-right font-medium">Actions</th>
@@ -143,7 +168,7 @@ export function InventoryPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center">
+                  <td colSpan={7} className="px-5 py-12 text-center">
                     <span className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading inventory...
@@ -152,7 +177,7 @@ export function InventoryPage() {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-destructive">
+                  <td colSpan={7} className="px-5 py-12 text-center text-destructive">
                     {error}
                   </td>
                 </tr>
@@ -190,6 +215,9 @@ export function InventoryPage() {
                         {p.sku}
                       </td>
                       <td className="px-5 py-3 text-right tabular-nums text-foreground">
+                        {formatCurrency(p.capital)}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-foreground">
                         {formatCurrency(p.unitPrice)}
                       </td>
                       <td className="px-5 py-3 text-right tabular-nums text-foreground">
@@ -212,7 +240,17 @@ export function InventoryPage() {
                             variant="ghost"
                             size="icon"
                             className="text-muted-foreground hover:text-foreground"
+                            onClick={() => setRestockProductTarget(p)}
+                            title="Restock"
+                          >
+                            <Package className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-foreground"
                             onClick={() => setEditProduct(p)}
+                            title="Edit"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -262,7 +300,11 @@ export function InventoryPage() {
             <Input name="stock" type="number" min="0" required defaultValue={0} />
           </div>
           <div className="space-y-1">
-            <Label>Unit Price (₱)</Label>
+            <Label>Capital (₱)</Label>
+            <Input name="capital" type="number" min="0" step="0.01" required defaultValue={0} />
+          </div>
+          <div className="space-y-1">
+            <Label>SRP (₱)</Label>
             <Input name="unitPrice" type="number" min="0" step="0.01" required defaultValue={0} />
           </div>
           <div className="mt-4 flex justify-end gap-3">
@@ -309,7 +351,18 @@ export function InventoryPage() {
             />
           </div>
           <div className="space-y-1">
-            <Label>Unit Price (₱)</Label>
+            <Label>Capital (₱)</Label>
+            <Input
+              name="capital"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              defaultValue={editProduct?.capital || 0}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>SRP (₱)</Label>
             <Input
               name="unitPrice"
               type="number"
@@ -325,6 +378,45 @@ export function InventoryPage() {
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Restock Product Modal */}
+      <Modal
+        isOpen={!!restockProductTarget}
+        onClose={() => setRestockProductTarget(null)}
+        title="Restock Product"
+      >
+        <form onSubmit={handleRestockProduct} className="flex flex-col gap-4">
+          <div className="space-y-1">
+            <Label>Quantity to Add</Label>
+            <Input
+              name="quantity"
+              type="number"
+              min="1"
+              required
+              defaultValue={0}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>New Capital (₱)</Label>
+            <Input
+              name="capital"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              defaultValue={restockProductTarget?.capital || 0}
+            />
+          </div>
+          <div className="mt-4 flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => setRestockProductTarget(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Restock"}
             </Button>
           </div>
         </form>
