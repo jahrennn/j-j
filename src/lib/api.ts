@@ -57,6 +57,26 @@ export interface InventoryResponse {
   products: Product[]
 }
 
+export interface DailyRevenue {
+  date: string
+  revenue: number
+  profit: number
+  orders: number
+}
+
+export interface ProductBreakdown {
+  name: string
+  revenue: number
+  orders: number
+}
+
+export interface DashboardAnalytics {
+  todaySummary: SalesSummary
+  last7DaysSummary: SalesSummary
+  dailyRevenue: DailyRevenue[]   // last 30 days
+  productBreakdown: ProductBreakdown[]
+}
+
 export interface SettingsResponse {
   businessName: string
   contactNumber: string
@@ -395,4 +415,95 @@ export async function deleteSale(saleId: string, password: string): Promise<void
     method: "DELETE",
     body: JSON.stringify({ password }),
   })
+}
+
+export async function getDashboardAnalytics(): Promise<DashboardAnalytics> {
+  function toLocalDateString(d: Date): string {
+    const offset = d.getTimezoneOffset() * 60000
+    return new Date(d.getTime() - offset).toISOString().slice(0, 10)
+  }
+
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 300))
+    const today = toLocalDateString(new Date())
+    const d7ago = toLocalDateString(new Date(Date.now() - 6 * 86400000))
+    const d30ago = toLocalDateString(new Date(Date.now() - 29 * 86400000))
+
+    const todayRecords = filterByRange(MOCK_SALES, { startDate: today, endDate: today })
+    const last7Records = filterByRange(MOCK_SALES, { startDate: d7ago, endDate: today })
+    const last30Records = filterByRange(MOCK_SALES, { startDate: d30ago, endDate: today })
+
+    // Daily revenue for last 30 days
+    const dailyMap = new Map<string, DailyRevenue>()
+    for (let i = 29; i >= 0; i--) {
+      const d = toLocalDateString(new Date(Date.now() - i * 86400000))
+      dailyMap.set(d, { date: d, revenue: 0, profit: 0, orders: 0 })
+    }
+    for (const r of last30Records) {
+      const entry = dailyMap.get(r.date)
+      if (entry) {
+        entry.revenue += r.totalAmount
+        entry.profit += r.profit
+        entry.orders += 1
+      }
+    }
+
+    // Product breakdown
+    const prodMap = new Map<string, ProductBreakdown>()
+    for (const r of last30Records) {
+      const name = r.itemName || r.item
+      const entry = prodMap.get(name) ?? { name, revenue: 0, orders: 0 }
+      entry.revenue += r.totalAmount
+      entry.orders += r.quantity
+      prodMap.set(name, entry)
+    }
+
+    return {
+      todaySummary: summarize(todayRecords),
+      last7DaysSummary: summarize(last7Records),
+      dailyRevenue: Array.from(dailyMap.values()),
+      productBreakdown: Array.from(prodMap.values()).sort((a, b) => b.revenue - a.revenue),
+    }
+  }
+
+  // Real backend — fetch last 30 days of sales and compute analytics client-side
+  const today = toLocalDateString(new Date())
+  const d30ago = toLocalDateString(new Date(Date.now() - 29 * 86400000))
+  const d7ago = toLocalDateString(new Date(Date.now() - 6 * 86400000))
+
+  const [res30, resToday, res7] = await Promise.all([
+    getSales({ startDate: d30ago, endDate: today }),
+    getSales({ startDate: today, endDate: today }),
+    getSales({ startDate: d7ago, endDate: today }),
+  ])
+
+  const dailyMap = new Map<string, DailyRevenue>()
+  for (let i = 29; i >= 0; i--) {
+    const d = toLocalDateString(new Date(Date.now() - i * 86400000))
+    dailyMap.set(d, { date: d, revenue: 0, profit: 0, orders: 0 })
+  }
+  for (const r of res30.records) {
+    const entry = dailyMap.get(r.date)
+    if (entry) {
+      entry.revenue += r.totalAmount
+      entry.profit += r.profit
+      entry.orders += 1
+    }
+  }
+
+  const prodMap = new Map<string, ProductBreakdown>()
+  for (const r of res30.records) {
+    const name = r.itemName || r.item
+    const entry = prodMap.get(name) ?? { name, revenue: 0, orders: 0 }
+    entry.revenue += r.totalAmount
+    entry.orders += r.quantity
+    prodMap.set(name, entry)
+  }
+
+  return {
+    todaySummary: resToday.summary,
+    last7DaysSummary: res7.summary,
+    dailyRevenue: Array.from(dailyMap.values()),
+    productBreakdown: Array.from(prodMap.values()).sort((a, b) => b.revenue - a.revenue),
+  }
 }
