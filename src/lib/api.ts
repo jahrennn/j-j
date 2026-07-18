@@ -177,14 +177,7 @@ function summarize(records: SaleRecord[]): SalesSummary {
   }
 }
 
-function getStoredToken(): string | null {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw).token as string) : null
-  } catch {
-    return null
-  }
-}
+// Token is now managed by the browser via HttpOnly cookies
 
 async function parseErrorMessage(res: Response): Promise<string> {
   try {
@@ -203,10 +196,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   headers.set("Content-Type", "application/json")
 
-  const token = getStoredToken()
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`)
-  }
+  // The browser automatically attaches the HttpOnly cookie for requests
+  // as long as credentials: "include" is set.
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     credentials: "include",
@@ -288,7 +279,7 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 500))
     if (payload.username === "admin" && payload.password === "admin123") {
-      return { token: "mock-jwt-token", username: payload.username }
+      return { token: "", username: payload.username }
     }
     throw new Error("Invalid username or password.")
   }
@@ -296,6 +287,16 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
   return request<LoginResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(payload),
+  })
+}
+
+export async function logout(): Promise<void> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 300))
+    return
+  }
+  await request<void>("/auth/logout", {
+    method: "POST",
   })
 }
 

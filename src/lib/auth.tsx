@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react"
-import { login as apiLogin, type LoginPayload } from "./api"
+import { login as apiLogin, logout as apiLogout, type LoginPayload } from "./api"
 
 interface AuthState {
   username: string | null
@@ -28,11 +28,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsername(res.username)
     sessionStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ username: res.username, token: res.token }),
+      JSON.stringify({ username: res.username }),
     )
   }
 
-  function signOut() {
+  async function signOut() {
+    await apiLogout().catch(() => {})
     setUsername(null)
     sessionStorage.removeItem(STORAGE_KEY)
   }
@@ -42,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY)
       if (raw) {
-        const session = JSON.parse(raw) as { username: string; token: string }
+        const session = JSON.parse(raw) as { username: string }
         sessionStorage.setItem(
           STORAGE_KEY,
           JSON.stringify({ ...session, username: nextUsername }),
