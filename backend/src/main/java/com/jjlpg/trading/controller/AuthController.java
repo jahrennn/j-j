@@ -43,10 +43,10 @@ public class AuthController {
         
         ResponseCookie springCookie = ResponseCookie.from("jwt", loginResponse.token())
                 .httpOnly(true)
-                .secure(true) // Should be true in production with HTTPS
+                .secure(true) // Must be true when SameSite=None
                 .path("/")
                 .maxAge(3600) // 1 hour
-                .sameSite("Strict")
+                .sameSite("None") // Required for cross-site requests (Vercel -> Render)
                 .build();
 
         return ResponseEntity.ok()
@@ -61,7 +61,7 @@ public class AuthController {
                 .secure(true)
                 .path("/")
                 .maxAge(0) // immediately expire
-                .sameSite("Strict")
+                .sameSite("None") // Required for cross-site requests (Vercel -> Render)
                 .build();
 
         return ResponseEntity.ok()
