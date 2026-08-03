@@ -209,11 +209,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // ignore
   }
 
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 90000) // 90 second timeout
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
     credentials: "include",
     ...init,
     headers,
+    signal: controller.signal,
+  }).catch((err) => {
+    clearTimeout(timeoutId)
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("The server is taking too long to respond. It may be waking up — please try again in a moment.")
+    }
+    throw err
   })
+  clearTimeout(timeoutId)
 
   if (res.status === 401) {
     sessionStorage.removeItem(STORAGE_KEY)
