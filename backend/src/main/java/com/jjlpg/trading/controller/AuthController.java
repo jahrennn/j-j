@@ -51,7 +51,7 @@ public class AuthController {
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, springCookie.toString())
-                .body(new LoginResponse(null, loginResponse.username()));
+                .body(new LoginResponse(loginResponse.token(), loginResponse.username()));
     }
 
     @PostMapping("/logout")

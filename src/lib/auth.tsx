@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsername(res.username)
     sessionStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ username: res.username }),
+      JSON.stringify({ username: res.username, token: res.token }),
     )
   }
 

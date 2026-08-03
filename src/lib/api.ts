@@ -196,8 +196,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   headers.set("Content-Type", "application/json")
 
-  // The browser automatically attaches the HttpOnly cookie for requests
-  // as long as credentials: "include" is set.
+  // Attach JWT as Bearer token (works universally on all browsers/devices)
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      const session = JSON.parse(raw) as { token?: string }
+      if (session.token) {
+        headers.set("Authorization", `Bearer ${session.token}`)
+      }
+    }
+  } catch {
+    // ignore
+  }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     credentials: "include",
