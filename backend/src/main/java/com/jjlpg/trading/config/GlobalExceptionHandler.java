@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
         ex.printStackTrace(new PrintWriter(sw));
         System.err.println("Exception caught by advice: " + sw.toString());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("Internal Server Error: " + ex.getMessage()));
+                .body(new ErrorResponse("An internal server error occurred. Please try again later."));
     }
 
     public record ErrorResponse(String message) {}

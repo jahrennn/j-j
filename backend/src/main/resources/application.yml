@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
   servlet:
     context-path: /api
 
@@ -7,9 +7,9 @@ spring:
   application:
     name: jjlpg-trading
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/jjlpg}
-    username: ${DB_USER:jjlpg}
-    password: ${DB_PASSWORD:jjlpg}
+    url: ${DB_URL:${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/jjlpg}}
+    username: ${DB_USER:${SPRING_DATASOURCE_USERNAME:jjlpg}}
+    password: ${DB_PASSWORD:${SPRING_DATASOURCE_PASSWORD:jjlpg}}
   jpa:
     hibernate:
       ddl-auto: validate
