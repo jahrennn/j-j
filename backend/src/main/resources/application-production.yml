@@ -1,0 +1,13 @@
+# Enable on Render with SPRING_PROFILES_ACTIVE=production.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
+  bootstrap:
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}

@@ -358,7 +358,7 @@ export function DashboardPage() {
                     width={120}
                   />
                   <Tooltip
-                    formatter={(v: number) => [formatCurrency(v), "Revenue"]}
+                    formatter={(v) => [formatCurrency(Number(v ?? 0)), "Revenue"]}
                     contentStyle={{
                       background: "white",
                       border: "1px solid oklch(0.91 0.01 247)",

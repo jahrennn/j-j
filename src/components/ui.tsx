@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils"
 import { X } from "lucide-react"
 
-type ButtonVariant = "primary" | "accent" | "outline" | "ghost"
+type ButtonVariant = "primary" | "accent" | "outline" | "ghost" | "destructive"
 type ButtonSize = "sm" | "md" | "icon"
 
 const buttonVariants: Record<ButtonVariant, string> = {
@@ -19,6 +19,8 @@ const buttonVariants: Record<ButtonVariant, string> = {
   outline:
     "border border-input bg-card text-foreground hover:bg-muted",
   ghost: "text-foreground hover:bg-muted",
+  destructive:
+    "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
 }
 
 const buttonSizes: Record<ButtonSize, string> = {
@@ -135,10 +137,11 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-background/80 backdrop-blur-sm">
       <div className="relative w-full max-w-md p-4">
-        <Card className="relative w-full shadow-lg">
+        <Card role="dialog" aria-modal="true" aria-label={title} className="relative w-full shadow-lg">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <h3 className="font-semibold text-foreground">{title}</h3>
             <button
+              aria-label="Close dialog"
               onClick={onClose}
               className="rounded-lg p-1 hover:bg-muted text-muted-foreground transition-colors"
             >

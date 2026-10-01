@@ -1,6 +1,6 @@
 # Jahren & John LPG Trading
 
-Web app for managing LPG refill and tank sales, inventory, and business settings.
+Web app for managing LPG refill and tank sales, inventory, LPG/general loans, and business settings.
 
 ## Stack
 
@@ -84,3 +84,9 @@ App runs at `http://localhost:3000`.
 ├── docker-compose.yml    # PostgreSQL for local dev
 └── .env.example          # Frontend env template
 ```
+
+## Loan Tracker production release
+
+See [migration, environment configuration, checks, and recovery instructions](docs/LOAN_TRACKER_DEPLOYMENT.md).
+
+Loan endpoints (JWT required): `GET /api/loans?category=LPG|OTHER`, `POST /api/loans`, and `POST /api/loans/{id}/payments`.

@@ -5,6 +5,7 @@ import { LoginPage } from "@/pages/LoginPage"
 import { DashboardPage } from "@/pages/DashboardPage"
 import { SalesPage } from "@/pages/SalesPage"
 import { InventoryPage } from "@/pages/InventoryPage"
+import { LoanTrackerPage } from "@/pages/LoanTrackerPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/sales" element={<SalesPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/loans" element={<LoanTrackerPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

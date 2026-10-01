@@ -7,6 +7,7 @@ import com.jjlpg.trading.entity.User;
 import com.jjlpg.trading.repository.ProductRepository;
 import com.jjlpg.trading.repository.SaleRepository;
 import com.jjlpg.trading.repository.UserRepository;
+import com.jjlpg.trading.repository.LoanRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,18 +27,23 @@ public class SalesService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LoanService loanService;
+    private final LoanRepository loanRepository;
 
     public SalesService(SaleRepository saleRepository, ProductRepository productRepository,
-                        UserRepository userRepository, PasswordEncoder passwordEncoder) {
+                        UserRepository userRepository, PasswordEncoder passwordEncoder,
+                        LoanService loanService, LoanRepository loanRepository) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.loanService = loanService;
+        this.loanRepository = loanRepository;
     }
 
     @Transactional
     public SaleRecordDto recordSale(CreateSaleRequest request) {
-        Product product = productRepository.findById(request.productId())
+        Product product = productRepository.findByIdForUpdate(request.productId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
 
         if (product.getStock() < request.quantity()) {
@@ -48,7 +54,7 @@ public class SalesService {
         productRepository.save(product);
 
         Sale sale = new Sale();
-        sale.setSaleDate(LocalDate.now());
+        sale.setSaleDate(LocalDate.now(java.time.ZoneId.of("Asia/Manila")));
         sale.setTransactionId("TXN-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         sale.setItemType(product.getType());
         sale.setItemName(product.getName());
@@ -64,7 +70,25 @@ public class SalesService {
             sale.setAddress(request.address() != null && !request.address().isBlank() ? request.address() : "Unknown");
         }
 
+        boolean isUtang = "Utang".equalsIgnoreCase(request.paymentMethod()) || "UTANG".equalsIgnoreCase(request.paymentMethod());
+        sale.setPaymentMethod(isUtang ? "UTANG" : "CASH");
+        BigDecimal downpayment = isUtang && request.downpayment() != null ? request.downpayment() : BigDecimal.ZERO;
+        if (downpayment.signum() < 0 || downpayment.compareTo(sale.getTotalAmount()) > 0) {
+            throw new IllegalArgumentException("Downpayment must be between zero and the total sale amount");
+        }
+        if (isUtang && sale.getTotalAmount().signum() <= 0) {
+            throw new IllegalArgumentException("A credit sale must have a positive total amount");
+        }
+        sale.setDownpayment(downpayment);
+
         Sale savedSale = saleRepository.save(sale);
+
+        if (isUtang) {
+            String itemsPurchased = sale.getItemName() + " (" + sale.getQuantity() + "x)";
+            loanService.createLpgLoan(savedSale, sale.getBuyerName(), sale.getSaleDate(),
+                    itemsPurchased, sale.getTotalAmount(), downpayment);
+        }
+
         // Return with dynamic profit using current product capital
         return toDto(savedSale, product);
     }
@@ -98,6 +122,9 @@ public class SalesService {
         if (!saleRepository.existsById(saleId)) {
             throw new IllegalArgumentException("Sale record not found");
         }
+        if (loanRepository.findBySaleId(saleId).isPresent()) {
+            throw new IllegalStateException("Sales linked to loans cannot be deleted; retain them for payment audit history");
+        }
         saleRepository.deleteById(saleId);
     }
 
@@ -127,7 +154,9 @@ public class SalesService {
                 capital,
                 sale.getTotalAmount().subtract(capital),
                 sale.getBuyerName(),
-                sale.getAddress());
+                sale.getAddress(),
+                sale.getPaymentMethod(),
+                sale.getDownpayment());
     }
 
     private SalesSummaryDto summarize(List<SaleRecordDto> records) {

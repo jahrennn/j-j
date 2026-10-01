@@ -53,6 +53,7 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -68,7 +69,9 @@ public class SecurityConfig {
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
                     .toList();
-            config.setAllowedOrigins(origins);
+            config.setAllowedOriginPatterns(origins);
+        } else {
+            config.setAllowedOriginPatterns(List.of("*"));
         }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

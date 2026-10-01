@@ -81,6 +81,9 @@ export function SalesPage() {
   const [recordSaleOpen, setRecordSaleOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deliveryMethod, setDeliveryMethod] = useState("Pick up")
+  const [paymentMethod, setPaymentMethod] = useState("Cash")
+  const [saleError, setSaleError] = useState("")
+  const [downpayment, setDownpayment] = useState<number>(0)
 
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<SaleRecord | null>(null)
@@ -120,6 +123,8 @@ export function SalesPage() {
 
   const handleRecordSale = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (isSubmitting) return
+    setSaleError("")
     setIsSubmitting(true)
     try {
       const formData = new FormData(e.currentTarget)
@@ -128,15 +133,27 @@ export function SalesPage() {
       const buyerName = formData.get("buyerName") as string
       const address = formData.get("address") as string || ""
       const selectedDeliveryMethod = formData.get("deliveryMethod") as string
+      const selectedPaymentMethod = (formData.get("paymentMethod") as string) || "Cash"
+      const dpValue = selectedPaymentMethod === "Utang" ? (parseFloat(formData.get("downpayment") as string) || 0) : 0
 
-      await createSale({ productId, quantity, buyerName, address, deliveryMethod: selectedDeliveryMethod })
+      await createSale({
+        productId,
+        quantity,
+        buyerName,
+        address,
+        deliveryMethod: selectedDeliveryMethod,
+        paymentMethod: selectedPaymentMethod,
+        downpayment: dpValue
+      })
       setRecordSaleOpen(false)
       // reset form
       setDeliveryMethod("Pick up")
+      setPaymentMethod("Cash")
+      setDownpayment(0)
       fetchSales()
       getInventory().then((res) => setProducts(res.products)).catch(console.error)
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to record sale")
+      setSaleError(err instanceof Error ? err.message : "Failed to record sale")
     } finally {
       setIsSubmitting(false)
     }
@@ -212,7 +229,7 @@ export function SalesPage() {
             <Printer className="h-4 w-4" />
             Print Report
           </Button>
-          <Button onClick={() => setRecordSaleOpen(true)}>
+          <Button onClick={() => { setSaleError(""); setDeliveryMethod("Pick up"); setPaymentMethod("Cash"); setDownpayment(0); setRecordSaleOpen(true) }}>
             <Plus className="h-4 w-4" />
             Record Sale
           </Button>
@@ -333,7 +350,12 @@ export function SalesPage() {
                         {formatCurrency(r.capital)}
                       </td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums text-foreground">
-                        {formatCurrency(r.totalAmount)}
+                        <div>{formatCurrency(r.totalAmount)}</div>
+                        {(r.paymentMethod === "UTANG" || (r as any).paymentMethod === "Utang") && (
+                          <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            Utang {r.downpayment ? `(DP: ${formatCurrency(r.downpayment)})` : ""}
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums text-success">
                         {formatCurrency(r.profit)}
@@ -370,6 +392,7 @@ export function SalesPage() {
       <Modal
         isOpen={recordSaleOpen}
         onClose={() => {
+          if (isSubmitting) return
           setRecordSaleOpen(false)
           setDeliveryMethod("Pick up")
         }}
@@ -391,7 +414,7 @@ export function SalesPage() {
               ))}
             </Select>
           </div>
-          
+
           <div className="space-y-1">
             <Label>Quantity</Label>
             <Input name="quantity" type="number" min="1" required defaultValue={1} />
@@ -399,14 +422,32 @@ export function SalesPage() {
 
           <div className="space-y-1">
             <Label>Delivery Method</Label>
-            <Select 
-              name="deliveryMethod" 
-              required 
+            <Select
+              name="deliveryMethod"
+              required
               value={deliveryMethod}
               onChange={(e) => setDeliveryMethod(e.target.value)}
             >
               <option value="Pick up">Pick up</option>
               <option value="Deliver">Deliver</option>
+            </Select>
+          </div>
+
+
+
+          <div className="space-y-1">
+            <Label>Payment Method</Label>
+            <Select
+              name="paymentMethod"
+              required
+              value={paymentMethod}
+              onChange={(e) => {
+                setPaymentMethod(e.target.value)
+                if (e.target.value === "Cash") setDownpayment(0)
+              }}
+            >
+              <option value="Cash">Cash</option>
+              <option value="Utang">Utang (Credit / Loan)</option>
             </Select>
           </div>
 
@@ -417,10 +458,36 @@ export function SalesPage() {
             </div>
           )}
 
+          {paymentMethod === "Utang" && (
+            <div className="space-y-1.5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="downpayment">Initial Downpayment (₱)</Label>
+                <span className="text-[11px] text-muted-foreground">Optional (defaults to 0)</span>
+              </div>
+              <Input
+                id="downpayment"
+                name="downpayment"
+                type="number"
+                min="0"
+                step="0.01"
+                value={downpayment}
+                onChange={(e) => setDownpayment(parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                An entry will automatically be created in the <strong>Loan Tracker</strong> with the initial balance due.
+              </p>
+            </div>
+          )}
+
+          {saleError && <p role="alert" className="text-sm text-destructive">{saleError}</p>}
+
           <div className="mt-4 flex justify-end gap-3">
             <Button type="button" variant="ghost" onClick={() => {
               setRecordSaleOpen(false)
               setDeliveryMethod("Pick up")
+              setPaymentMethod("Cash")
+              setDownpayment(0)
             }}>
               Cancel
             </Button>

@@ -1,11 +1,12 @@
 import { NavLink } from "react-router-dom"
-import { LayoutDashboard, Receipt, Package, Settings, Flame, X } from "lucide-react"
+import { LayoutDashboard, Receipt, Package, CreditCard, Settings, Flame, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/sales", label: "Sales", icon: Receipt },
   { to: "/inventory", label: "Inventory", icon: Package },
+  { to: "/loans", label: "Loan Tracker", icon: CreditCard },
   { to: "/settings", label: "Settings", icon: Settings },
 ]
 

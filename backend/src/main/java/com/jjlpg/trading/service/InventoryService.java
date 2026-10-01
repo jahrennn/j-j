@@ -53,7 +53,7 @@ public class InventoryService {
 
     @Transactional
     public ProductDto updateStock(Long productId, UpdateStockRequest request) {
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findByIdForUpdate(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
         product.setStock(request.stock());
         return toDto(productRepository.save(product));
@@ -61,7 +61,7 @@ public class InventoryService {
 
     @Transactional
     public ProductDto restockProduct(Long productId, com.jjlpg.trading.dto.RestockRequest request) {
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findByIdForUpdate(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
         product.setStock(product.getStock() + request.quantity());
         product.setCapital(request.capital());
@@ -70,7 +70,7 @@ public class InventoryService {
 
     @Transactional
     public ProductDto updateProduct(Long productId, com.jjlpg.trading.dto.UpdateProductRequest request) {
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findByIdForUpdate(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
         product.setSku(request.sku());
         product.setName(request.name());

@@ -24,6 +24,51 @@ export interface SaleRecord {
   profit: number
   buyerName: string
   address: string
+  paymentMethod?: string
+  downpayment?: number
+}
+
+export type LoanCategory = "LPG" | "OTHER"
+export type LoanStatus = "UNPAID" | "PARTIALLY_PAID" | "PAID"
+
+export interface LoanPayment {
+  id: number
+  amount: number
+  paymentDate: string
+  notes?: string
+  createdAt?: string
+}
+
+export interface LoanRecord {
+  id: number
+  category: LoanCategory
+  borrowerName: string
+  loanDate: string
+  description?: string
+  itemsPurchased?: string
+  totalAmount: number
+  amountPaid: number
+  remainingBalance: number
+  status: LoanStatus
+  notes?: string
+  saleId?: number
+  payments: LoanPayment[]
+}
+
+export interface CreateLoanPayload {
+  borrowerName: string
+  loanDate?: string
+  description: string
+  totalAmount: number
+  downpayment?: number
+  notes?: string
+}
+
+export interface RecordPaymentPayload {
+  requestId?: string
+  amount: number
+  paymentDate?: string
+  notes?: string
 }
 
 export interface SalesSummary {
@@ -102,8 +147,8 @@ export interface LoginResponse {
   username: string
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ""
-const USE_MOCK = API_BASE_URL === ""
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "")
+const USE_MOCK = import.meta.env.DEV && API_BASE_URL === ""
 const STORAGE_KEY = "jjlpg.session"
 
 /* -------------------------------------------------------------------------- */
@@ -143,6 +188,7 @@ function seededSales(): SaleRecord[] {
       date: d.toISOString().slice(0, 10),
       transactionId: `TXN-${String(10248 - i).padStart(5, "0")}`,
       item,
+      itemName: item,
       quantity,
       totalAmount: unit * quantity,
       capital: (unit - 100) * quantity,
@@ -155,6 +201,68 @@ function seededSales(): SaleRecord[] {
 }
 
 const MOCK_SALES = seededSales()
+
+const MOCK_LOANS: LoanRecord[] = [
+  {
+    id: 1,
+    category: "LPG",
+    borrowerName: "Juan Dela Cruz",
+    loanDate: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10),
+    description: "LPG Sale - TXN-10201",
+    itemsPurchased: "LPG Refill (11kg) (2x)",
+    totalAmount: 1900,
+    amountPaid: 500,
+    remainingBalance: 1400,
+    status: "PARTIALLY_PAID",
+    notes: "Will pay balance on Friday",
+    payments: [
+      { id: 101, amount: 500, paymentDate: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10), notes: "Initial Downpayment" }
+    ]
+  },
+  {
+    id: 2,
+    category: "LPG",
+    borrowerName: "Maria Santos",
+    loanDate: new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10),
+    description: "LPG Sale - TXN-10202",
+    itemsPurchased: "LPG Tank (11kg) (1x)",
+    totalAmount: 2800,
+    amountPaid: 0,
+    remainingBalance: 2800,
+    status: "UNPAID",
+    notes: "Neighbor, promised end of month",
+    payments: []
+  },
+  {
+    id: 3,
+    category: "OTHER",
+    borrowerName: "Pedro Penduko",
+    loanDate: new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10),
+    description: "Cash Loan / Emergency Expense",
+    totalAmount: 1500,
+    amountPaid: 1500,
+    remainingBalance: 0,
+    status: "PAID",
+    notes: "Paid in full via GCash",
+    payments: [
+      { id: 102, amount: 500, paymentDate: new Date(Date.now() - 4 * 86400000).toISOString().slice(0, 10), notes: "Partial cash payment" },
+      { id: 103, amount: 1000, paymentDate: new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10), notes: "Full payment settlement" }
+    ]
+  },
+  {
+    id: 4,
+    category: "OTHER",
+    borrowerName: "Aling Nena's Sari-Sari",
+    loanDate: new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10),
+    description: "Store items credit & delivery fee",
+    totalAmount: 850,
+    amountPaid: 0,
+    remainingBalance: 850,
+    status: "UNPAID",
+    notes: "Collect on weekend",
+    payments: []
+  }
+]
 
 function filterByRange(records: SaleRecord[], range?: DateRange): SaleRecord[] {
   if (!range?.startDate && !range?.endDate) return records
@@ -321,7 +429,15 @@ export async function logout(): Promise<void> {
   })
 }
 
-export async function createSale(payload: { productId: string; quantity: number; buyerName: string; address: string; deliveryMethod: string }): Promise<SaleRecord> {
+export async function createSale(payload: {
+  productId: string
+  quantity: number
+  buyerName: string
+  address: string
+  deliveryMethod: string
+  paymentMethod?: string
+  downpayment?: number
+}): Promise<SaleRecord> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
     const product = MOCK_PRODUCTS.find(p => p.id === payload.productId)
@@ -331,6 +447,9 @@ export async function createSale(payload: { productId: string; quantity: number;
     product.stock -= payload.quantity
     
     const address = payload.deliveryMethod === "Pick up" ? "Pick up" : (payload.address || "Unknown")
+    const isUtang = payload.paymentMethod === "Utang" || payload.paymentMethod === "UTANG"
+    const totalAmount = product.unitPrice * payload.quantity
+    const downpayment = isUtang ? (payload.downpayment ?? 0) : 0
 
     const newSale: SaleRecord = {
       id: `sale-mock-${Date.now()}`,
@@ -339,13 +458,42 @@ export async function createSale(payload: { productId: string; quantity: number;
       item: product.type,
       itemName: product.name,
       quantity: payload.quantity,
-      totalAmount: product.unitPrice * payload.quantity,
+      totalAmount: totalAmount,
       capital: product.capital * payload.quantity,
       profit: (product.unitPrice - product.capital) * payload.quantity,
       buyerName: payload.buyerName,
-      address: address
+      address: address,
+      paymentMethod: isUtang ? "UTANG" : "CASH",
+      downpayment: downpayment
     }
     MOCK_SALES.unshift(newSale)
+
+    if (isUtang) {
+      const remaining = Math.max(0, totalAmount - downpayment)
+      const mockLoan: LoanRecord = {
+        id: Date.now(),
+        category: "LPG",
+        borrowerName: payload.buyerName,
+        loanDate: newSale.date,
+        description: `LPG Sale - ${newSale.transactionId}`,
+        itemsPurchased: `${product.name} (${payload.quantity}x)`,
+        totalAmount: totalAmount,
+        amountPaid: downpayment,
+        remainingBalance: remaining,
+        status: remaining <= 0 ? "PAID" : downpayment > 0 ? "PARTIALLY_PAID" : "UNPAID",
+        notes: "Auto-created from LPG Utang sale",
+        payments: downpayment > 0 ? [
+          {
+            id: Date.now() + 1,
+            amount: downpayment,
+            paymentDate: newSale.date,
+            notes: "Initial Downpayment"
+          }
+        ] : []
+      }
+      MOCK_LOANS.unshift(mockLoan)
+    }
+
     return newSale
   }
   return request<SaleRecord>("/sales", {
@@ -528,4 +676,100 @@ export async function getDashboardAnalytics(): Promise<DashboardAnalytics> {
     dailyRevenue: Array.from(dailyMap.values()),
     productBreakdown: Array.from(prodMap.values()).sort((a, b) => b.revenue - a.revenue),
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                Loan Tracker                                */
+/* -------------------------------------------------------------------------- */
+
+export async function getLoans(category?: LoanCategory): Promise<LoanRecord[]> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 200))
+    if (!category) return [...MOCK_LOANS]
+    return MOCK_LOANS.filter((l) => l.category === category)
+  }
+
+  const query = category ? `?category=${category}` : ""
+  return request<LoanRecord[]>(`/loans${query}`)
+}
+
+export async function createOtherLoan(payload: CreateLoanPayload): Promise<LoanRecord> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 300))
+    const downpayment = payload.downpayment ?? 0
+    if (downpayment < 0) throw new Error("Downpayment cannot be negative")
+    if (downpayment > payload.totalAmount) throw new Error("Downpayment cannot exceed total amount")
+
+    const remaining = Math.max(0, payload.totalAmount - downpayment)
+    const today = new Date().toISOString().slice(0, 10)
+    const loanDate = payload.loanDate || today
+
+    const newLoan: LoanRecord = {
+      id: Date.now(),
+      category: "OTHER",
+      borrowerName: payload.borrowerName.trim(),
+      loanDate: loanDate,
+      description: payload.description.trim(),
+      totalAmount: payload.totalAmount,
+      amountPaid: downpayment,
+      remainingBalance: remaining,
+      status: remaining <= 0 ? "PAID" : downpayment > 0 ? "PARTIALLY_PAID" : "UNPAID",
+      notes: payload.notes?.trim() || undefined,
+      payments: downpayment > 0 ? [
+        {
+          id: Date.now() + 1,
+          amount: downpayment,
+          paymentDate: loanDate,
+          notes: "Initial Downpayment"
+        }
+      ] : []
+    }
+    MOCK_LOANS.unshift(newLoan)
+    return newLoan
+  }
+
+  return request<LoanRecord>("/loans", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function recordLoanPayment(loanId: number, payload: RecordPaymentPayload): Promise<LoanRecord> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 300))
+    const loan = MOCK_LOANS.find((l) => l.id === loanId)
+    if (!loan) throw new Error("Loan not found")
+    if (loan.status === "PAID" || loan.remainingBalance <= 0) {
+      throw new Error("Loan is already fully paid")
+    }
+    if (payload.amount <= 0) {
+      throw new Error("Payment amount must be greater than zero")
+    }
+    if (payload.amount > loan.remainingBalance) {
+      throw new Error(`Payment amount (₱${payload.amount}) cannot exceed remaining balance (₱${loan.remainingBalance})`)
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    const paymentDate = payload.paymentDate || today
+
+    const payment: LoanPayment = {
+      id: Date.now(),
+      amount: payload.amount,
+      paymentDate: paymentDate,
+      notes: payload.notes?.trim() || undefined,
+      createdAt: new Date().toISOString()
+    }
+    loan.payments.unshift(payment)
+
+    loan.amountPaid += payload.amount
+    loan.remainingBalance = Math.max(0, loan.totalAmount - loan.amountPaid)
+    loan.status = loan.remainingBalance === 0 ? "PAID" : "PARTIALLY_PAID"
+
+    return { ...loan }
+  }
+
+  return request<LoanRecord>(`/loans/${loanId}/payments`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }

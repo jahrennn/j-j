@@ -1,19 +1,18 @@
 import { useState, type FormEvent } from "react"
-import { useNavigate } from "react-router-dom"
+import { Navigate } from "react-router-dom"
 import { Flame, Lock, User, Loader2, AlertCircle } from "lucide-react"
 import { Button, Card, Input, Label } from "@/components/ui"
 import { useAuth } from "@/lib/auth"
 
 export function LoginPage() {
   const { signIn, isAuthenticated } = useAuth()
-  const navigate = useNavigate()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   if (isAuthenticated) {
-    navigate("/dashboard", { replace: true })
+    return <Navigate to="/dashboard" replace />
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -22,7 +21,6 @@ export function LoginPage() {
     setLoading(true)
     try {
       await signIn({ username, password })
-      navigate("/dashboard", { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in.")
     } finally {

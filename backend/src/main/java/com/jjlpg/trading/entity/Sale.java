@@ -46,6 +46,12 @@ public class Sale {
     @Column(name = "product_id")
     private Long productId;
 
+    @Column(name = "payment_method", nullable = false, length = 20)
+    private String paymentMethod = "CASH";
+
+    @Column(name = "downpayment", nullable = false, precision = 12, scale = 2)
+    private BigDecimal downpayment = BigDecimal.ZERO;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -136,6 +142,22 @@ public class Sale {
 
     public void setProductId(Long productId) {
         this.productId = productId;
+    }
+
+    public String getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
+    public BigDecimal getDownpayment() {
+        return downpayment;
+    }
+
+    public void setDownpayment(BigDecimal downpayment) {
+        this.downpayment = downpayment;
     }
 }
 
