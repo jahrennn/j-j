@@ -21,7 +21,7 @@ history is stored independently from sales revenue to avoid counting collections
 
 1. Take a Supabase database backup and restore it into a staging database first.
 2. Inspect `flyway_schema_history` to determine which migrations have run. Do not edit
-   an applied migration, and do not run V7 twice. V8 is intentionally a separate migration.
+   an applied migration, and do not run V7 twice. V8 and V9 are separate migrations.
 3. If V7 is already applied, run the read-only checks in `docs/loan-preflight.sql`.
    Inspect pre-existing loan records for zero totals, balances inconsistent with total
    minus paid, incorrect status, duplicate sale links, and LPG loans without a linked sale.
@@ -46,7 +46,7 @@ Use the existing Docker service with root directory `backend`. Set:
 - `BOOTSTRAP_ADMIN_PASSWORD`: only needed if the users table is empty. Use a strong
   initial password; remove the variable after bootstrap. Existing databases do not need it.
 
-Deploy the backend to staging. Flyway automatically applies V7 if pending, then V8,
+Deploy the backend to staging. Flyway automatically applies V7 if pending, then V8 and V9,
 before Hibernate validates the schema. Repeat against production only after staging passes.
 Do not manually execute these scripts in Supabase SQL Editor while Flyway owns migrations;
 manual execution without migration history reconciliation makes the next startup fail.
@@ -117,6 +117,9 @@ been written, preserve V7/V8 tables and payment history when rolling back applic
 V8 tightens constraints: an older backend that deletes linked sales will be rejected by
 PostgreSQL. Prefer fixing forward, and restore backups only with an explicit recovery plan
 that accounts for all transactions recorded after the backup.
+
+V9 adds the stored delivery method used on thermal receipts. See
+[PT-210 receipt instructions](THERMAL_RECEIPTS.md) for printer setup and legacy data behavior.
 
 ## Verification performed for this change
 

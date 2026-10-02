@@ -14,6 +14,7 @@ public record SaleRecordDto(
         BigDecimal profit,
         String buyerName,
         String address,
+        String deliveryMethod,
         String paymentMethod,
         BigDecimal downpayment
 ) {

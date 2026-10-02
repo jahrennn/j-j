@@ -24,6 +24,7 @@ export interface SaleRecord {
   profit: number
   buyerName: string
   address: string
+  deliveryMethod?: string
   paymentMethod?: string
   downpayment?: number
 }
@@ -194,7 +195,10 @@ function seededSales(): SaleRecord[] {
       capital: (unit - 100) * quantity,
       profit: 100 * quantity,
       buyerName: `Customer ${i}`,
-      address: i % 3 === 0 ? "Pick up" : `123 Demo St, Address ${i}`
+      address: i % 3 === 0 ? "Pick up" : `123 Demo St, Address ${i}`,
+      deliveryMethod: i % 3 === 0 ? "Pick up" : "Deliver",
+      paymentMethod: "CASH",
+      downpayment: 0
     })
   }
   return records
@@ -463,6 +467,7 @@ export async function createSale(payload: {
       profit: (product.unitPrice - product.capital) * payload.quantity,
       buyerName: payload.buyerName,
       address: address,
+      deliveryMethod: payload.deliveryMethod,
       paymentMethod: isUtang ? "UTANG" : "CASH",
       downpayment: downpayment
     }

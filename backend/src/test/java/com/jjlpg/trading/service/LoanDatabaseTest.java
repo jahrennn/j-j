@@ -64,11 +64,16 @@ class LoanDatabaseTest {
     }
     @Test void creditSaleCreatesLoanAndDeductsStockAtomically() {
         Product product = product();
-        var sale = sales.recordSale(new CreateSaleRequest(product.getId(), 2, "Customer", "", "Pick up", "utang", money("20.00")));
+        var sale = sales.recordSale(new CreateSaleRequest(product.getId(), 2, "Customer", "Test address", "Deliver", "utang", money("20.00")));
         var loan = loanRepository.findBySaleId(Long.valueOf(sale.id())).orElseThrow();
         assertEquals(money("100.00"), loan.getTotalAmount());
         assertEquals(money("80.00"), loan.getRemainingBalance());
         assertEquals(8, products.findById(product.getId()).orElseThrow().getStock());
+        assertEquals("Deliver", sale.deliveryMethod());
+        assertEquals("Test address", sale.address());
+        var saleDate = LocalDate.now(java.time.ZoneId.of("Asia/Manila"));
+        assertEquals("Deliver", sales.getSales(saleDate, saleDate).records().stream()
+                .filter(record -> record.id().equals(sale.id())).findFirst().orElseThrow().deliveryMethod());
     }
     @Test void invalidCreditSaleRollsBackSaleAndInventory() {
         Product product = product(); long before = saleRepository.count();
@@ -80,6 +85,7 @@ class LoanDatabaseTest {
         Product product = product();
         var sale = sales.recordSale(new CreateSaleRequest(product.getId(), 1, "Customer", "", "Pick up", null, money("20.00")));
         assertEquals("CASH", sale.paymentMethod());
+        assertEquals("Pick up", sale.deliveryMethod());
         assertEquals(0, sale.downpayment().signum());
         assertTrue(loanRepository.findBySaleId(Long.valueOf(sale.id())).isEmpty());
     }

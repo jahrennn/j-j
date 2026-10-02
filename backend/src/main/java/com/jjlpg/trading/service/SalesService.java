@@ -65,8 +65,10 @@ public class SalesService {
         sale.setBuyerName(request.buyerName());
         
         if ("Pick up".equalsIgnoreCase(request.deliveryMethod())) {
+            sale.setDeliveryMethod("Pick up");
             sale.setAddress("Pick up");
         } else {
+            sale.setDeliveryMethod("Deliver");
             sale.setAddress(request.address() != null && !request.address().isBlank() ? request.address() : "Unknown");
         }
 
@@ -155,6 +157,7 @@ public class SalesService {
                 sale.getTotalAmount().subtract(capital),
                 sale.getBuyerName(),
                 sale.getAddress(),
+                sale.getDeliveryMethod(),
                 sale.getPaymentMethod(),
                 sale.getDownpayment());
     }

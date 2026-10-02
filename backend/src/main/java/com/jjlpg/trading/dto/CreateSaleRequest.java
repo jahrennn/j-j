@@ -19,6 +19,7 @@ public record CreateSaleRequest(
         String address,
 
         @NotNull(message = "Delivery method is required")
+        @jakarta.validation.constraints.Pattern(regexp = "(?i)Pick up|Deliver", message = "Delivery method must be Pick up or Deliver")
         String deliveryMethod,
 
         @jakarta.validation.constraints.Pattern(regexp = "(?i)cash|utang", message = "Payment method must be Cash or Utang")

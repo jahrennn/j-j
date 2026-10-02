@@ -89,4 +89,6 @@ App runs at `http://localhost:3000`.
 
 See [migration, environment configuration, checks, and recovery instructions](docs/LOAN_TRACKER_DEPLOYMENT.md).
 
+For the PT-210 receipt printer, see [sales receipt printing and paper setup](docs/THERMAL_RECEIPTS.md).
+
 Loan endpoints (JWT required): `GET /api/loans?category=LPG|OTHER`, `POST /api/loans`, and `POST /api/loans/{id}/payments`.

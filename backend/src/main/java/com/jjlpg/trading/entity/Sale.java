@@ -40,6 +40,9 @@ public class Sale {
     @Column(nullable = false, length = 500)
     private String address = "Unknown";
 
+    @Column(name = "delivery_method", nullable = false, length = 20)
+    private String deliveryMethod = "Pick up";
+
     @Column(name = "item_name", nullable = false, length = 255)
     private String itemName = "Unknown Product";
 
@@ -116,6 +119,14 @@ public class Sale {
         return address;
     }
 
+    public String getDeliveryMethod() {
+        return deliveryMethod;
+    }
+
+    public void setDeliveryMethod(String deliveryMethod) {
+        this.deliveryMethod = deliveryMethod;
+    }
+
     public void setAddress(String address) {
         this.address = address;
     }
@@ -160,4 +171,3 @@ public class Sale {
         this.downpayment = downpayment;
     }
 }
-

@@ -14,8 +14,10 @@ import {
 } from "lucide-react"
 import { Badge, Button, Card, Modal, Label, Input, Select } from "@/components/ui"
 import { DateRangePicker } from "@/components/DateRangePicker"
+import { SaleReceipt, downloadSaleReceiptPng, printSaleReceipt } from "@/components/SaleReceipt"
 import {
   getSales,
+  getSettings,
   getInventory,
   createSale,
   deleteSale,
@@ -84,6 +86,13 @@ export function SalesPage() {
   const [paymentMethod, setPaymentMethod] = useState("Cash")
   const [saleError, setSaleError] = useState("")
   const [downpayment, setDownpayment] = useState<number>(0)
+  const [businessName, setBusinessName] = useState("Jahren and John LPG Trading")
+  const [printTarget, setPrintTarget] = useState<SaleRecord | null>(null)
+  const [receiptError, setReceiptError] = useState("")
+  const [receiptNotice, setReceiptNotice] = useState("")
+  const [receiptBusy, setReceiptBusy] = useState(false)
+  const receiptRef = useRef<HTMLDivElement>(null)
+  const isAndroid = /Android/i.test(navigator.userAgent)
 
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<SaleRecord | null>(null)
@@ -110,7 +119,38 @@ export function SalesPage() {
 
   useEffect(() => {
     getInventory().then((res) => setProducts(res.products)).catch(console.error)
+    getSettings().then((res) => setBusinessName(res.businessName)).catch(console.error)
   }, [])
+
+  const openReceipt = (sale: SaleRecord) => {
+    setReceiptError("")
+    setReceiptNotice("")
+    setPrintTarget(sale)
+  }
+
+  const handleBrowserPrint = () => {
+    if (!printTarget || !receiptRef.current) return
+    setReceiptError("")
+    setReceiptNotice("")
+    if (!printSaleReceipt(receiptRef.current, printTarget.transactionId)) {
+      setReceiptError("Your browser blocked the receipt window. Allow pop-ups for this site and try again.")
+    }
+  }
+
+  const handleDownloadReceipt = async () => {
+    if (!printTarget || receiptBusy) return
+    setReceiptBusy(true)
+    setReceiptError("")
+    setReceiptNotice("")
+    try {
+      await downloadSaleReceiptPng(printTarget, businessName)
+      setReceiptNotice("PNG download started. On Android, find it in Files > Downloads and open it in your printer app.")
+    } catch (err) {
+      setReceiptError(err instanceof Error ? err.message : "Could not download the receipt image.")
+    } finally {
+      setReceiptBusy(false)
+    }
+  }
 
   // Focus password input when delete modal opens
   useEffect(() => {
@@ -225,9 +265,13 @@ export function SalesPage() {
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button
+            variant="outline"
+            disabled={loading || !data?.records.length}
+            onClick={() => data?.records[0] && openReceipt(data.records[0])}
+          >
             <Printer className="h-4 w-4" />
-            Print Report
+            Print Receipt
           </Button>
           <Button onClick={() => { setSaleError(""); setDeliveryMethod("Pick up"); setPaymentMethod("Cash"); setDownpayment(0); setRecordSaleOpen(true) }}>
             <Plus className="h-4 w-4" />
@@ -364,6 +408,15 @@ export function SalesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label={`Print receipt for ${r.transactionId}`}
+                          title="Print receipt"
+                          onClick={() => openReceipt(r)}
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="text-muted-foreground hover:text-destructive"
                           onClick={() => setDeleteTarget(r)}
                         >
@@ -387,6 +440,57 @@ export function SalesPage() {
           </table>
         </div>
       </Card>
+
+      <Modal
+        isOpen={!!printTarget}
+        onClose={() => setPrintTarget(null)}
+        title="Print Sale Receipt"
+      >
+        {printTarget && (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label htmlFor="receipt-sale">Select sale</Label>
+              <Select
+                id="receipt-sale"
+                value={printTarget.id}
+                onChange={(e) => {
+                  const selected = data?.records.find((sale) => sale.id === e.target.value)
+                  if (selected) openReceipt(selected)
+                }}
+              >
+                {data?.records.map((sale) => (
+                  <option key={sale.id} value={sale.id}>
+                    {sale.date} · {sale.transactionId} · {sale.buyerName}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="max-h-[55vh] overflow-auto rounded-lg border border-border bg-white py-3">
+              <div ref={receiptRef}>
+                <SaleReceipt sale={printTarget} businessName={businessName} />
+              </div>
+            </div>
+            {receiptError && <p role="alert" className="text-sm text-destructive">{receiptError}</p>}
+            {receiptNotice && <p role="status" className="text-sm text-success">{receiptNotice}</p>}
+            {isAndroid && (
+              <p className="text-xs text-muted-foreground">
+                Download the PNG, then open it from Files &gt; Downloads in your PT-210 printer app.
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" onClick={() => setPrintTarget(null)}>Cancel</Button>
+              <Button variant="outline" onClick={isAndroid ? handleBrowserPrint : handleDownloadReceipt} disabled={receiptBusy}>
+                {isAndroid ? <Printer className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+                {isAndroid ? "Browser Print" : "Download PNG"}
+              </Button>
+              <Button onClick={isAndroid ? handleDownloadReceipt : handleBrowserPrint} disabled={receiptBusy}>
+                {isAndroid ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
+                {isAndroid ? "Download Image" : "Print Receipt"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Record Sale Modal */}
       <Modal
