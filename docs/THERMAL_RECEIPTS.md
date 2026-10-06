@@ -7,7 +7,7 @@ page length to the actual content.
 
 In **Sales Report**, click **Print Receipt** to choose one sale, or use the
 printer icon on a sales row. The preview includes the business name, customer,
-sale number and date, item and quantity, unit and total price, payment method,
+sale number and date, product and quantity, unit and total price, payment method,
 delivery method, and delivery address when applicable. For Utang, the printed
 downpayment and balance are **at the time of sale**; use Loan Tracker for the
 current balance after later payments.

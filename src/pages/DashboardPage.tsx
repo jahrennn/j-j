@@ -17,7 +17,6 @@ import {
   ShoppingCart,
   TrendingUp,
   ArrowRight,
-  Flame,
   Cylinder,
   BarChart2,
   Loader2,
@@ -404,22 +403,16 @@ export function DashboardPage() {
             ) : inventory.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-muted-foreground">No products yet</p>
             ) : (
-              inventory.map((item) => {
-                const low = item.stock < 20
-                const Icon = item.type === "LPG Tank" ? Cylinder : Flame
+              inventory.map((product) => {
+                const low = product.stock < 20
                 return (
                   <div
-                    key={item.sku}
+                    key={product.sku}
                     className="flex items-center justify-between px-5 py-3.5"
                   >
                     <div className="flex items-center gap-3">
-                      <Icon
-                        className={cn(
-                          "h-4 w-4 shrink-0",
-                          item.type === "LPG Tank" ? "text-primary" : "text-accent",
-                        )}
-                      />
-                      <span className="text-sm text-foreground truncate max-w-[110px]">{item.name}</span>
+                      <Cylinder className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="text-sm text-foreground truncate max-w-[110px]">{product.name}</span>
                     </div>
                     <Badge
                       className={cn(
@@ -429,7 +422,7 @@ export function DashboardPage() {
                           : "bg-success/15 text-success",
                       )}
                     >
-                      {item.stock} left
+                      {product.stock} left
                     </Badge>
                   </div>
                 )

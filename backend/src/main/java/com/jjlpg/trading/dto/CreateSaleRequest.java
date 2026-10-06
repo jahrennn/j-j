@@ -27,5 +27,13 @@ public record CreateSaleRequest(
 
         @jakarta.validation.constraints.Digits(integer = 10, fraction = 2)
         @jakarta.validation.constraints.DecimalMin("0")
-        BigDecimal downpayment
-) {}
+        BigDecimal downpayment,
+
+        @jakarta.validation.Valid
+        TankExchangeRequest tankExchange
+) {
+    public CreateSaleRequest(Long productId, Integer quantity, String buyerName, String address,
+                             String deliveryMethod, String paymentMethod, BigDecimal downpayment) {
+        this(productId, quantity, buyerName, address, deliveryMethod, paymentMethod, downpayment, null);
+    }
+}

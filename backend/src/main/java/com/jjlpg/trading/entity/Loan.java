@@ -31,8 +31,8 @@ public class Loan {
     @Column(length = 500)
     private String description;
 
-    @Column(name = "items_purchased", length = 500)
-    private String itemsPurchased;
+    @Column(name = "product_purchased", length = 500)
+    private String productPurchased;
 
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
@@ -105,12 +105,12 @@ public class Loan {
         this.description = description;
     }
 
-    public String getItemsPurchased() {
-        return itemsPurchased;
+    public String getProductPurchased() {
+        return productPurchased;
     }
 
-    public void setItemsPurchased(String itemsPurchased) {
-        this.itemsPurchased = itemsPurchased;
+    public void setProductPurchased(String productPurchased) {
+        this.productPurchased = productPurchased;
     }
 
     public BigDecimal getTotalAmount() {

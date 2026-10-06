@@ -3,9 +3,11 @@ package com.jjlpg.trading.controller;
 import com.jjlpg.trading.dto.CreateProductRequest;
 import com.jjlpg.trading.dto.DeleteProductRequest;
 import com.jjlpg.trading.dto.InventoryResponseDto;
+import com.jjlpg.trading.dto.PageResponseDto;
 import com.jjlpg.trading.dto.ProductDto;
 import com.jjlpg.trading.dto.UpdateStockRequest;
 import com.jjlpg.trading.service.InventoryService;
+import com.jjlpg.trading.service.StockMovementService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,14 +17,24 @@ import org.springframework.web.bind.annotation.*;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final StockMovementService stockMovementService;
 
-    public InventoryController(InventoryService inventoryService) {
+    public InventoryController(InventoryService inventoryService, StockMovementService stockMovementService) {
         this.inventoryService = inventoryService;
+        this.stockMovementService = stockMovementService;
     }
 
     @GetMapping
     public InventoryResponseDto getInventory() {
         return inventoryService.getInventory();
+    }
+
+    @GetMapping("/movements")
+    public PageResponseDto<com.jjlpg.trading.dto.StockMovementDto> getMovements(
+            @RequestParam(required = false) Long productId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
+        return PageResponseDto.from(stockMovementService.getMovements(productId, page, size));
     }
 
     @PostMapping("/products")

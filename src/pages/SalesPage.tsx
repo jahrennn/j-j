@@ -5,7 +5,6 @@ import {
   TrendingUp,
   Printer,
   Loader2,
-  Flame,
   Cylinder,
   Plus,
   Download,
@@ -86,6 +85,9 @@ export function SalesPage() {
   const [paymentMethod, setPaymentMethod] = useState("Cash")
   const [saleError, setSaleError] = useState("")
   const [downpayment, setDownpayment] = useState<number>(0)
+  const [selectedProductId, setSelectedProductId] = useState("")
+  const [hasTankExchange, setHasTankExchange] = useState(false)
+  const [customerTankId, setCustomerTankId] = useState("")
   const [businessName, setBusinessName] = useState("Jahren and John LPG Trading")
   const [printTarget, setPrintTarget] = useState<SaleRecord | null>(null)
   const [receiptError, setReceiptError] = useState("")
@@ -118,7 +120,11 @@ export function SalesPage() {
   }, [range])
 
   useEffect(() => {
-    getInventory().then((res) => setProducts(res.products)).catch(console.error)
+    getInventory().then((res) => {
+      setProducts(res.products)
+      setSelectedProductId(res.products.find((product) => product.stock > 0)?.id ?? "")
+      setCustomerTankId(res.products[0]?.id ?? "")
+    }).catch(console.error)
     getSettings().then((res) => setBusinessName(res.businessName)).catch(console.error)
   }, [])
 
@@ -183,13 +189,18 @@ export function SalesPage() {
         address,
         deliveryMethod: selectedDeliveryMethod,
         paymentMethod: selectedPaymentMethod,
-        downpayment: dpValue
+        downpayment: dpValue,
+        tankExchange: hasTankExchange ? {
+          customerTankProductId: customerTankId,
+          suppliedTankProductId: productId,
+        } : undefined,
       })
       setRecordSaleOpen(false)
       // reset form
       setDeliveryMethod("Pick up")
       setPaymentMethod("Cash")
       setDownpayment(0)
+      setHasTankExchange(false)
       fetchSales()
       getInventory().then((res) => setProducts(res.products)).catch(console.error)
     } catch (err) {
@@ -218,12 +229,12 @@ export function SalesPage() {
   const handleExportCSV = () => {
     if (!data || data.records.length === 0) return
 
-    const headers = ["Date", "Transaction ID", "Buyer Name", "Item", "Quantity", "Total Amount (PHP)", "Capital (PHP)", "Profit (PHP)", "Address"]
+    const headers = ["Date", "Transaction ID", "Buyer Name", "Product", "Quantity", "Total Amount (PHP)", "Capital (PHP)", "Profit (PHP)", "Address"]
     const rows = data.records.map((r) => [
       r.date,
       r.transactionId,
       r.buyerName || "",
-      r.item,
+      r.productName,
       String(r.quantity),
       r.totalAmount.toFixed(2),
       r.capital.toFixed(2),
@@ -253,7 +264,7 @@ export function SalesPage() {
             Sales Report
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Review LPG refill and tank sales across a selected date range.
+            Review LPG tank sales across a selected date range.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -273,7 +284,7 @@ export function SalesPage() {
             <Printer className="h-4 w-4" />
             Print Receipt
           </Button>
-          <Button onClick={() => { setSaleError(""); setDeliveryMethod("Pick up"); setPaymentMethod("Cash"); setDownpayment(0); setRecordSaleOpen(true) }}>
+          <Button onClick={() => { setSaleError(""); setDeliveryMethod("Pick up"); setPaymentMethod("Cash"); setDownpayment(0); setHasTankExchange(false); setRecordSaleOpen(true) }}>
             <Plus className="h-4 w-4" />
             Record Sale
           </Button>
@@ -331,7 +342,7 @@ export function SalesPage() {
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-5 py-3 font-medium">Date</th>
                 <th className="px-5 py-3 font-medium">Buyer</th>
-                <th className="px-5 py-3 font-medium">Item</th>
+                <th className="px-5 py-3 font-medium">Product</th>
                 <th className="px-5 py-3 font-medium">Address</th>
                 <th className="px-5 py-3 text-right font-medium">Quantity</th>
                 <th className="px-5 py-3 text-right font-medium">Capital</th>
@@ -352,7 +363,6 @@ export function SalesPage() {
                 </tr>
               ) : data && data.records.length > 0 ? (
                 data.records.map((r) => {
-                  const isTank = r.item === "LPG Tank"
                   return (
                     <tr
                       key={r.id}
@@ -369,19 +379,10 @@ export function SalesPage() {
                       </td>
                       <td className="px-5 py-3">
                         <Badge
-                          className={cn(
-                            "gap-1.5",
-                            isTank
-                              ? "bg-primary/10 text-primary"
-                              : "bg-accent/15 text-accent",
-                          )}
+                          className="gap-1.5 bg-primary/10 text-primary"
                         >
-                          {isTank ? (
-                            <Cylinder className="h-3.5 w-3.5" />
-                          ) : (
-                            <Flame className="h-3.5 w-3.5" />
-                          )}
-                          {r.itemName}
+                          <Cylinder className="h-3.5 w-3.5" />
+                          {r.productName}
                         </Badge>
                       </td>
                       <td className="px-5 py-3 text-foreground max-w-[150px] truncate" title={r.address}>
@@ -510,7 +511,8 @@ export function SalesPage() {
 
           <div className="space-y-1">
             <Label>Product</Label>
-            <Select name="productId" required>
+            <Select name="productId" required value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}>
+              <option value="" disabled>Select a product</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id} disabled={p.stock === 0}>
                   {p.name} (Stock: {p.stock}) - {formatCurrency(p.unitPrice)}
@@ -523,6 +525,35 @@ export function SalesPage() {
             <Label>Quantity</Label>
             <Input name="quantity" type="number" min="1" required defaultValue={1} />
           </div>
+
+          {selectedProductId && (
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={hasTankExchange} onChange={(e) => setHasTankExchange(e.target.checked)} />
+                Customer is exchanging a tank
+              </label>
+              {hasTankExchange && <>
+                <div className="space-y-1">
+                  <Label>Customer's tank (received by store)</Label>
+                  <Select value={customerTankId} onChange={(e) => setCustomerTankId(e.target.value)} required>
+                    <option value="" disabled>Select customer's tank</option>
+                    {products.map((product) =>
+                      <option key={product.id} value={product.id}>{product.name} ({product.sku})</option>)}
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Tank given to customer</Label>
+                  <Select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} required>
+                    {products.map((product) =>
+                      <option key={product.id} value={product.id} disabled={product.stock === 0}>
+                        {product.name} ({product.sku}) · Stock: {product.stock}
+                      </option>)}
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">The tank given is the product sold. Its stock decreases normally. The customer's tank is recorded but is not added to saleable stock.</p>
+              </>}
+            </div>
+          )}
 
           <div className="space-y-1">
             <Label>Delivery Method</Label>
@@ -592,6 +623,7 @@ export function SalesPage() {
               setDeliveryMethod("Pick up")
               setPaymentMethod("Cash")
               setDownpayment(0)
+              setHasTankExchange(false)
             }}>
               Cancel
             </Button>
@@ -628,8 +660,8 @@ export function SalesPage() {
               <span className="font-medium">{deleteTarget ? formatDate(deleteTarget.date) : ""}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Item</span>
-              <span className="font-medium">{deleteTarget?.item}</span>
+              <span className="text-muted-foreground">Product</span>
+              <span className="font-medium">{deleteTarget?.productName}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Quantity</span>

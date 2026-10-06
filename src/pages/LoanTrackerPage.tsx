@@ -275,7 +275,7 @@ export function LoanTrackerPage() {
                   Date
                 </th>
                 <th className="whitespace-nowrap px-5 py-3.5 font-semibold text-muted-foreground">
-                  {activeTab === "LPG" ? "Items" : "Description"}
+                  {activeTab === "LPG" ? "Product" : "Description"}
                 </th>
                 <th className="whitespace-nowrap px-5 py-3.5 text-right font-semibold text-muted-foreground">
                   Total
@@ -318,8 +318,8 @@ export function LoanTrackerPage() {
                     <td className="whitespace-nowrap px-5 py-3 text-foreground">
                       {formatDate(loan.loanDate)}
                     </td>
-                    <td className="max-w-[200px] truncate px-5 py-3 text-foreground" title={activeTab === "LPG" ? loan.itemsPurchased : loan.description}>
-                      {activeTab === "LPG" ? loan.itemsPurchased || "-" : loan.description || "-"}
+                    <td className="max-w-[200px] truncate px-5 py-3 text-foreground" title={activeTab === "LPG" ? loan.productPurchased : loan.description}>
+                      {activeTab === "LPG" ? loan.productPurchased || "-" : loan.description || "-"}
                     </td>
                     <td className="whitespace-nowrap px-5 py-3 text-right font-medium tabular-nums text-foreground">
                       {formatCurrency(loan.totalAmount)}

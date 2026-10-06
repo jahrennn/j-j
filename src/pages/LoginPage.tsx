@@ -10,6 +10,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [slowLogin, setSlowLogin] = useState(false)
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />
@@ -19,12 +20,16 @@ export function LoginPage() {
     e.preventDefault()
     setError(null)
     setLoading(true)
+    setSlowLogin(false)
+    const slowLoginTimer = window.setTimeout(() => setSlowLogin(true), 10000)
     try {
       await signIn({ username, password })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in.")
     } finally {
+      window.clearTimeout(slowLoginTimer)
       setLoading(false)
+      setSlowLogin(false)
     }
   }
 
@@ -89,6 +94,11 @@ export function LoginPage() {
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               {loading ? "Signing in..." : "Sign In"}
             </Button>
+            {slowLogin && (
+              <p role="status" className="text-sm text-muted-foreground">
+                The server may be waking up after inactivity. Please keep this page open; the first request can take about a minute.
+              </p>
+            )}
           </form>
 
         </Card>

@@ -21,10 +21,6 @@ public class Sale {
     @Column(name = "transaction_id", nullable = false, unique = true, length = 50)
     private String transactionId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "item_type", nullable = false, length = 20)
-    private ItemType itemType;
-
     @Column(nullable = false)
     private Integer quantity;
 
@@ -43,8 +39,8 @@ public class Sale {
     @Column(name = "delivery_method", nullable = false, length = 20)
     private String deliveryMethod = "Pick up";
 
-    @Column(name = "item_name", nullable = false, length = 255)
-    private String itemName = "Unknown Product";
+    @Column(name = "product_name", nullable = false, length = 255)
+    private String productName = "Unknown Product";
 
     @Column(name = "product_id")
     private Long productId;
@@ -81,14 +77,6 @@ public class Sale {
 
     public void setTransactionId(String transactionId) {
         this.transactionId = transactionId;
-    }
-
-    public ItemType getItemType() {
-        return itemType;
-    }
-
-    public void setItemType(ItemType itemType) {
-        this.itemType = itemType;
     }
 
     public Integer getQuantity() {
@@ -139,12 +127,12 @@ public class Sale {
         this.capital = capital;
     }
 
-    public String getItemName() {
-        return itemName;
+    public String getProductName() {
+        return productName;
     }
 
-    public void setItemName(String itemName) {
-        this.itemName = itemName;
+    public void setProductName(String productName) {
+        this.productName = productName;
     }
 
     public Long getProductId() {

@@ -4,6 +4,8 @@ import com.jjlpg.trading.dto.CreateSaleRequest;
 import com.jjlpg.trading.dto.DeleteSaleRequest;
 import com.jjlpg.trading.dto.SaleRecordDto;
 import com.jjlpg.trading.dto.SalesResponseDto;
+import com.jjlpg.trading.dto.PageResponseDto;
+import com.jjlpg.trading.dto.TankExchangeDto;
 import com.jjlpg.trading.service.SalesService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -29,6 +31,13 @@ public class SalesController {
         return salesService.getSales(startDate, endDate);
     }
 
+    @GetMapping("/tank-exchanges")
+    public PageResponseDto<TankExchangeDto> getTankExchanges(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
+        return PageResponseDto.from(salesService.getTankExchanges(page, size));
+    }
+
     @PostMapping
     public SaleRecordDto recordSale(@Valid @RequestBody CreateSaleRequest request) {
         return salesService.recordSale(request);
@@ -41,4 +50,3 @@ public class SalesController {
         return ResponseEntity.noContent().build();
     }
 }
-

@@ -13,7 +13,7 @@ const receiptStyles = `
   .sale-receipt .line span:first-child { flex: 0 0 auto; }
   .sale-receipt .line span:last-child { min-width: 0; text-align: right; }
   .sale-receipt .strong { font-weight: 700; font-size: 12px; }
-  .sale-receipt .item { font-weight: 700; margin: 1mm 0; }
+  .sale-receipt .product { font-weight: 700; margin: 1mm 0; }
   .sale-receipt .note { margin: 2mm 0 0; text-align: center; font-size: 10px; }
 `
 
@@ -48,7 +48,7 @@ export function SaleReceipt({ sale, businessName }: { sale: SaleRecord; business
         )}
         <div className="line"><span>Payment</span><span>{credit ? "Utang" : "Cash"}</span></div>
         <div className="rule" />
-        <p className="item">{sale.itemName || sale.item}</p>
+        <p className="product">{sale.productName}</p>
         <div className="line">
           <span>{sale.quantity} x {peso(sale.totalAmount / sale.quantity)}</span>
           <span>{peso(sale.totalAmount)}</span>
@@ -138,7 +138,7 @@ function drawReceiptImage(ctx: CanvasRenderingContext2D, sale: SaleRecord, busin
   if (delivery === "Deliver" && sale.address) pair("Address", sale.address)
   pair("Payment Method", credit ? "Utang" : "Cash")
   rule()
-  write(sale.itemName || sale.item, "bold 23px Arial")
+  write(sale.productName, "bold 23px Arial")
   pair(`${sale.quantity} x ${peso(sale.totalAmount / sale.quantity)}`, peso(sale.totalAmount))
   rule()
   pair("TOTAL", peso(sale.totalAmount), "bold 24px Arial")

@@ -1,6 +1,5 @@
 package com.jjlpg.trading.dto;
 
-import com.jjlpg.trading.entity.ItemType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,9 +12,6 @@ public record CreateProductRequest(
 
         @NotBlank(message = "Name is required")
         String name,
-
-        @NotNull(message = "Item type is required")
-        ItemType type,
 
         @NotNull(message = "Initial stock is required")
         @Min(value = 0, message = "Stock cannot be negative")

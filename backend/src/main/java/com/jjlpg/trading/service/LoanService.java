@@ -78,13 +78,13 @@ public class LoanService {
     }
 
     @Transactional
-    public Loan createLpgLoan(Sale sale, String buyerName, LocalDate date, String itemsPurchased,
+    public Loan createLpgLoan(Sale sale, String buyerName, LocalDate date, String productPurchased,
                               BigDecimal totalAmount, BigDecimal downpayment) {
         Loan loan = new Loan();
         loan.setCategory(LoanCategory.LPG);
         loan.setBorrowerName(buyerName != null ? buyerName.trim() : "Unknown");
         loan.setLoanDate(date != null ? date : LocalDate.now(java.time.ZoneId.of("Asia/Manila")));
-        loan.setItemsPurchased(itemsPurchased);
+        loan.setProductPurchased(productPurchased);
         loan.setDescription("LPG Sale - " + sale.getTransactionId());
         loan.setTotalAmount(totalAmount);
         loan.setSale(sale);
@@ -205,7 +205,7 @@ public class LoanService {
                 loan.getBorrowerName(),
                 loan.getLoanDate().toString(),
                 loan.getDescription(),
-                loan.getItemsPurchased(),
+                loan.getProductPurchased(),
                 loan.getTotalAmount(),
                 loan.getAmountPaid(),
                 loan.getRemainingBalance(),

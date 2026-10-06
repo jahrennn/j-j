@@ -10,14 +10,11 @@
  * UI is fully usable during development.
  */
 
-export type ItemType = "LPG Refill" | "LPG Tank"
-
 export interface SaleRecord {
   id: string
   date: string
   transactionId: string
-  item: ItemType
-  itemName: string
+  productName: string
   quantity: number
   totalAmount: number
   capital: number
@@ -27,6 +24,33 @@ export interface SaleRecord {
   deliveryMethod?: string
   paymentMethod?: string
   downpayment?: number
+}
+
+type SaleApiRecord = Omit<SaleRecord, "productName"> & { productName?: string; itemName?: string }
+
+function normalizeSale(record: SaleApiRecord): SaleRecord {
+  return { ...record, productName: record.productName ?? record.itemName ?? "" }
+}
+
+export interface TankExchangeRecord {
+  id: number
+  saleId: string
+  transactionId: string
+  date: string
+  buyerName: string
+  quantity: number
+  customerTankName: string
+  customerTankSku: string
+  suppliedTankName: string
+  suppliedTankSku: string
+  createdAt: string
+}
+
+export interface TankExchangePage {
+  content: TankExchangeRecord[]
+  number: number
+  totalPages: number
+  totalElements: number
 }
 
 export type LoanCategory = "LPG" | "OTHER"
@@ -46,7 +70,7 @@ export interface LoanRecord {
   borrowerName: string
   loanDate: string
   description?: string
-  itemsPurchased?: string
+  productPurchased?: string
   totalAmount: number
   amountPaid: number
   remainingBalance: number
@@ -54,6 +78,12 @@ export interface LoanRecord {
   notes?: string
   saleId?: number
   payments: LoanPayment[]
+}
+
+type LoanApiRecord = Omit<LoanRecord, "productPurchased"> & { productPurchased?: string; itemsPurchased?: string }
+
+function normalizeLoan(record: LoanApiRecord): LoanRecord {
+  return { ...record, productPurchased: record.productPurchased ?? record.itemsPurchased }
 }
 
 export interface CreateLoanPayload {
@@ -93,10 +123,33 @@ export interface Product {
   id: string
   name: string
   sku: string
-  type: ItemType
   stock: number
   unitPrice: number
   capital: number
+}
+
+export type StockMovementType = "OPENING" | "SALE" | "SALE_REVERSAL" | "RESTOCK" | "CORRECTION" | "DAMAGE" | "PRODUCT_DELETED"
+
+export interface StockMovement {
+  id: number
+  productId: number | null
+  productSku: string
+  productName: string
+  movementType: StockMovementType
+  quantityChange: number
+  stockBefore: number
+  stockAfter: number
+  reason: string
+  actor: string
+  transactionId: string | null
+  createdAt: string
+}
+
+export interface StockMovementPage {
+  content: StockMovement[]
+  number: number
+  totalPages: number
+  totalElements: number
 }
 
 export interface InventoryResponse {
@@ -156,16 +209,31 @@ const STORAGE_KEY = "jjlpg.session"
 /*                                  Mock data                                 */
 /* -------------------------------------------------------------------------- */
 
-const REFILL_PRICE = 950
-const TANK_PRICE = 2800
-
 const MOCK_PRODUCTS: Product[] = [
-  { id: "1", name: "LPG Refill (11kg)", sku: "RF-11", type: "LPG Refill", stock: 142, unitPrice: 950, capital: 800 },
-  { id: "2", name: "LPG Refill (22kg)", sku: "RF-22", type: "LPG Refill", stock: 64, unitPrice: 1850, capital: 1600 },
-  { id: "3", name: "LPG Tank (11kg)", sku: "TK-11", type: "LPG Tank", stock: 38, unitPrice: 2800, capital: 2500 },
-  { id: "4", name: "LPG Tank (22kg)", sku: "TK-22", type: "LPG Tank", stock: 12, unitPrice: 4600, capital: 4200 },
-  { id: "5", name: "LPG Tank (50kg)", sku: "TK-50", type: "LPG Tank", stock: 6, unitPrice: 9200, capital: 8500 },
+  { id: "1", name: "Brand A Tank (11kg)", sku: "TK-A11", stock: 142, unitPrice: 950, capital: 800 },
+  { id: "2", name: "Brand B Tank (22kg)", sku: "TK-B22", stock: 64, unitPrice: 1850, capital: 1600 },
+  { id: "3", name: "Brand C Tank (11kg)", sku: "TK-C11", stock: 38, unitPrice: 2800, capital: 2500 },
+  { id: "4", name: "Brand D Tank (22kg)", sku: "TK-D22", stock: 12, unitPrice: 4600, capital: 4200 },
+  { id: "5", name: "Brand E Tank (50kg)", sku: "TK-E50", stock: 6, unitPrice: 9200, capital: 8500 },
 ]
+
+let nextMockMovementId = 1
+const MOCK_MOVEMENTS: StockMovement[] = MOCK_PRODUCTS.map((product) => ({
+  id: nextMockMovementId++, productId: Number(product.id), productSku: product.sku,
+  productName: product.name, movementType: "OPENING", quantityChange: product.stock,
+  stockBefore: 0, stockAfter: product.stock, reason: "Opening balance when stock history was enabled",
+  actor: "system", transactionId: null, createdAt: new Date().toISOString(),
+}))
+
+function recordMockMovement(product: Product, movementType: StockMovementType,
+                            stockBefore: number, reason: string, transactionId: string | null = null) {
+  MOCK_MOVEMENTS.unshift({
+    id: nextMockMovementId++, productId: Number(product.id) || null, productSku: product.sku,
+    productName: product.name, movementType, quantityChange: product.stock - stockBefore,
+    stockBefore, stockAfter: product.stock, reason, actor: "admin", transactionId,
+    createdAt: new Date().toISOString(),
+  })
+}
 
 const MOCK_SETTINGS: SettingsResponse = {
   businessName: "Jahren and John LPG Trading",
@@ -180,20 +248,17 @@ function seededSales(): SaleRecord[] {
   for (let i = 0; i < 48; i++) {
     const d = new Date(today)
     d.setDate(today.getDate() - Math.floor(i / 2))
-    const isTank = i % 5 === 0
-    const item: ItemType = isTank ? "LPG Tank" : "LPG Refill"
-    const quantity = isTank ? 1 + (i % 2) : 1 + (i % 4)
-    const unit = isTank ? TANK_PRICE : REFILL_PRICE
+    const product = MOCK_PRODUCTS[i % MOCK_PRODUCTS.length]
+    const quantity = 1 + (i % 4)
     records.push({
       id: `sale-${i}`,
       date: d.toISOString().slice(0, 10),
       transactionId: `TXN-${String(10248 - i).padStart(5, "0")}`,
-      item,
-      itemName: item,
+      productName: product.name,
       quantity,
-      totalAmount: unit * quantity,
-      capital: (unit - 100) * quantity,
-      profit: 100 * quantity,
+      totalAmount: product.unitPrice * quantity,
+      capital: product.capital * quantity,
+      profit: (product.unitPrice - product.capital) * quantity,
       buyerName: `Customer ${i}`,
       address: i % 3 === 0 ? "Pick up" : `123 Demo St, Address ${i}`,
       deliveryMethod: i % 3 === 0 ? "Pick up" : "Deliver",
@@ -205,6 +270,7 @@ function seededSales(): SaleRecord[] {
 }
 
 const MOCK_SALES = seededSales()
+const MOCK_TANK_EXCHANGES: TankExchangeRecord[] = []
 
 const MOCK_LOANS: LoanRecord[] = [
   {
@@ -213,7 +279,7 @@ const MOCK_LOANS: LoanRecord[] = [
     borrowerName: "Juan Dela Cruz",
     loanDate: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10),
     description: "LPG Sale - TXN-10201",
-    itemsPurchased: "LPG Refill (11kg) (2x)",
+    productPurchased: "Brand A Tank (11kg) (2x)",
     totalAmount: 1900,
     amountPaid: 500,
     remainingBalance: 1400,
@@ -229,7 +295,7 @@ const MOCK_LOANS: LoanRecord[] = [
     borrowerName: "Maria Santos",
     loanDate: new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10),
     description: "LPG Sale - TXN-10202",
-    itemsPurchased: "LPG Tank (11kg) (1x)",
+    productPurchased: "Brand C Tank (11kg) (1x)",
     totalAmount: 2800,
     amountPaid: 0,
     remainingBalance: 2800,
@@ -334,11 +400,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (err instanceof Error && err.name === "AbortError") {
       throw new Error("The server is taking too long to respond. It may be waking up — please try again in a moment.")
     }
+    if (err instanceof TypeError) {
+      throw new Error("Could not connect to the server. Check your connection, then try again. If the app has been idle, the server may need about a minute to wake up.")
+    }
     throw err
   })
   clearTimeout(timeoutId)
 
   if (res.status === 401) {
+    if (path === "/auth/login") {
+      throw new Error("Invalid username or password.")
+    }
     sessionStorage.removeItem(STORAGE_KEY)
     if (window.location.pathname !== "/login") {
       window.location.href = "/login"
@@ -370,7 +442,8 @@ export async function getSales(range?: DateRange): Promise<SalesResponse> {
   if (range?.startDate) params.set("startDate", range.startDate)
   if (range?.endDate) params.set("endDate", range.endDate)
   const query = params.toString()
-  return request<SalesResponse>(`/sales${query ? `?${query}` : ""}`)
+  const response = await request<SalesResponse & { records: SaleApiRecord[] }>(`/sales${query ? `?${query}` : ""}`)
+  return { ...response, records: response.records.map(normalizeSale) }
 }
 
 export async function getInventory(): Promise<InventoryResponse> {
@@ -441,13 +514,20 @@ export async function createSale(payload: {
   deliveryMethod: string
   paymentMethod?: string
   downpayment?: number
+  tankExchange?: { customerTankProductId: string; suppliedTankProductId: string }
 }): Promise<SaleRecord> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
     const product = MOCK_PRODUCTS.find(p => p.id === payload.productId)
     if (!product) throw new Error("Product not found")
+    const customerTank = payload.tankExchange
+      ? MOCK_PRODUCTS.find(p => p.id === payload.tankExchange?.customerTankProductId) : undefined
+    if (payload.tankExchange && (payload.tankExchange.suppliedTankProductId !== product.id || !customerTank)) {
+      throw new Error("A tank exchange requires two current inventory products; the supplied tank must be the product sold")
+    }
     if (product.stock < payload.quantity) throw new Error("Insufficient stock")
     
+    const stockBefore = product.stock
     product.stock -= payload.quantity
     
     const address = payload.deliveryMethod === "Pick up" ? "Pick up" : (payload.address || "Unknown")
@@ -459,8 +539,7 @@ export async function createSale(payload: {
       id: `sale-mock-${Date.now()}`,
       date: new Date().toISOString().slice(0, 10),
       transactionId: `TXN-${Math.floor(Math.random() * 100000)}`,
-      item: product.type,
-      itemName: product.name,
+      productName: product.name,
       quantity: payload.quantity,
       totalAmount: totalAmount,
       capital: product.capital * payload.quantity,
@@ -472,6 +551,16 @@ export async function createSale(payload: {
       downpayment: downpayment
     }
     MOCK_SALES.unshift(newSale)
+    recordMockMovement(product, "SALE", stockBefore, `Sale ${newSale.transactionId}`, newSale.transactionId)
+    if (customerTank) {
+      MOCK_TANK_EXCHANGES.unshift({
+        id: Date.now(), saleId: newSale.id, transactionId: newSale.transactionId,
+        date: newSale.date, buyerName: newSale.buyerName, quantity: newSale.quantity,
+        customerTankName: customerTank.name, customerTankSku: customerTank.sku,
+        suppliedTankName: product.name, suppliedTankSku: product.sku,
+        createdAt: new Date().toISOString(),
+      })
+    }
 
     if (isUtang) {
       const remaining = Math.max(0, totalAmount - downpayment)
@@ -481,7 +570,7 @@ export async function createSale(payload: {
         borrowerName: payload.buyerName,
         loanDate: newSale.date,
         description: `LPG Sale - ${newSale.transactionId}`,
-        itemsPurchased: `${product.name} (${payload.quantity}x)`,
+        productPurchased: `${product.name} (${payload.quantity}x)`,
         totalAmount: totalAmount,
         amountPaid: downpayment,
         remainingBalance: remaining,
@@ -501,10 +590,30 @@ export async function createSale(payload: {
 
     return newSale
   }
-  return request<SaleRecord>("/sales", {
+  if (payload.tankExchange) {
+    // An older backend silently ignores tankExchange. Verify support before saving the sale.
+    try {
+      await getTankExchanges(0, 1)
+    } catch (err) {
+      throw new Error(`Tank exchange is unavailable on the backend. Update the backend before recording this sale. ${err instanceof Error ? err.message : ""}`.trim())
+    }
+  }
+  const response = await request<SaleApiRecord>("/sales", {
     method: "POST",
     body: JSON.stringify(payload),
   })
+  return normalizeSale(response)
+}
+
+export async function getTankExchanges(page = 0, size = 25): Promise<TankExchangePage> {
+  if (USE_MOCK) {
+    return {
+      content: MOCK_TANK_EXCHANGES.slice(page * size, (page + 1) * size),
+      number: page, totalPages: Math.ceil(MOCK_TANK_EXCHANGES.length / size),
+      totalElements: MOCK_TANK_EXCHANGES.length,
+    }
+  }
+  return request<TankExchangePage>(`/sales/tank-exchanges?page=${page}&size=${size}`)
 }
 
 export async function createProduct(payload: Omit<Product, "id">): Promise<Product> {
@@ -512,32 +621,53 @@ export async function createProduct(payload: Omit<Product, "id">): Promise<Produ
     await new Promise((r) => setTimeout(r, 300))
     const newProduct: Product = {
       ...payload,
-      id: `prod-mock-${Date.now()}`
+      id: String(Math.max(0, ...MOCK_PRODUCTS.map((product) => Number(product.id))) + 1)
     }
     MOCK_PRODUCTS.push(newProduct)
+    recordMockMovement(newProduct, "OPENING", 0, "Initial stock when product was added")
     return newProduct
   }
   return request<Product>("/inventory/products", {
     method: "POST",
-    body: JSON.stringify(payload),
+    // Older deployed backends still validate this field; newer ones default it internally.
+    body: JSON.stringify({ ...payload, type: "LPG Tank" }),
   })
 }
 
-export async function updateStock(productId: string, stock: number): Promise<Product> {
+export async function getStockMovements(productId?: string, page = 0, size = 25): Promise<StockMovementPage> {
+  if (USE_MOCK) {
+    const rows = productId ? MOCK_MOVEMENTS.filter((movement) => String(movement.productId) === productId) : MOCK_MOVEMENTS
+    return {
+      content: rows.slice(page * size, (page + 1) * size), number: page,
+      totalPages: Math.ceil(rows.length / size), totalElements: rows.length,
+    }
+  }
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (productId) params.set("productId", productId)
+  return request<StockMovementPage>(`/inventory/movements?${params}`)
+}
+
+export async function updateStock(productId: string, stock: number,
+                                  movementType: "CORRECTION" | "DAMAGE", reason: string): Promise<Product> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
     const product = MOCK_PRODUCTS.find(p => p.id === productId)
     if (!product) throw new Error("Product not found")
+    if (stock === product.stock || stock < 0 || (movementType === "DAMAGE" && stock >= product.stock)) {
+      throw new Error("Invalid stock adjustment")
+    }
+    const before = product.stock
     product.stock = stock
+    recordMockMovement(product, movementType, before, reason)
     return product
   }
   return request<Product>(`/inventory/products/${productId}/stock`, {
     method: "PUT",
-    body: JSON.stringify({ stock }),
+    body: JSON.stringify({ stock, movementType, reason }),
   })
 }
 
-export async function updateProduct(productId: string, payload: Omit<Product, "id">): Promise<Product> {
+export async function updateProduct(productId: string, payload: Omit<Product, "id" | "stock">): Promise<Product> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
     const product = MOCK_PRODUCTS.find(p => p.id === productId)
@@ -551,18 +681,20 @@ export async function updateProduct(productId: string, payload: Omit<Product, "i
   })
 }
 
-export async function restockProduct(productId: string, quantity: number, capital: number): Promise<Product> {
+export async function restockProduct(productId: string, quantity: number, capital: number, note = ""): Promise<Product> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
     const product = MOCK_PRODUCTS.find(p => p.id === productId)
     if (!product) throw new Error("Product not found")
+    const before = product.stock
     product.stock += quantity
     product.capital = capital
+    recordMockMovement(product, "RESTOCK", before, note.trim() || "Stock replenishment")
     return product
   }
   return request<Product>(`/inventory/products/${productId}/restock`, {
     method: "POST",
-    body: JSON.stringify({ quantity, capital }),
+    body: JSON.stringify({ quantity, capital, note }),
   })
 }
 
@@ -570,7 +702,13 @@ export async function deleteProduct(productId: string, password: string): Promis
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
     const index = MOCK_PRODUCTS.findIndex(p => p.id === productId)
-    if (index !== -1) MOCK_PRODUCTS.splice(index, 1)
+    if (index !== -1) {
+      const product = MOCK_PRODUCTS[index]
+      const before = product.stock
+      product.stock = 0
+      recordMockMovement(product, "PRODUCT_DELETED", before, "Product deleted after password confirmation")
+      MOCK_PRODUCTS.splice(index, 1)
+    }
     return
   }
   await request<void>(`/inventory/products/${productId}`, {
@@ -583,7 +721,19 @@ export async function deleteSale(saleId: string, password: string): Promise<void
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
     const index = MOCK_SALES.findIndex(s => s.id === saleId)
-    if (index !== -1) MOCK_SALES.splice(index, 1)
+    if (index !== -1) {
+      if (MOCK_TANK_EXCHANGES.some((exchange) => exchange.saleId === saleId)) {
+        throw new Error("Tank exchange sales cannot be deleted; retain them for exchange audit history")
+      }
+      const sale = MOCK_SALES[index]
+      const product = MOCK_PRODUCTS.find((candidate) => candidate.name === sale.productName)
+      if (product) {
+        const before = product.stock
+        product.stock += sale.quantity
+        recordMockMovement(product, "SALE_REVERSAL", before, `Deleted sale ${sale.transactionId}`, sale.transactionId)
+      }
+      MOCK_SALES.splice(index, 1)
+    }
     return
   }
   await request<void>(`/sales/${saleId}`, {
@@ -626,7 +776,7 @@ export async function getDashboardAnalytics(): Promise<DashboardAnalytics> {
     // Product breakdown
     const prodMap = new Map<string, ProductBreakdown>()
     for (const r of last30Records) {
-      const name = r.itemName || r.item
+      const name = r.productName
       const entry = prodMap.get(name) ?? { name, revenue: 0, orders: 0 }
       entry.revenue += r.totalAmount
       entry.orders += r.quantity
@@ -668,7 +818,7 @@ export async function getDashboardAnalytics(): Promise<DashboardAnalytics> {
 
   const prodMap = new Map<string, ProductBreakdown>()
   for (const r of res30.records) {
-    const name = r.itemName || r.item
+    const name = r.productName
     const entry = prodMap.get(name) ?? { name, revenue: 0, orders: 0 }
     entry.revenue += r.totalAmount
     entry.orders += r.quantity
@@ -695,7 +845,8 @@ export async function getLoans(category?: LoanCategory): Promise<LoanRecord[]> {
   }
 
   const query = category ? `?category=${category}` : ""
-  return request<LoanRecord[]>(`/loans${query}`)
+  const response = await request<LoanApiRecord[]>(`/loans${query}`)
+  return response.map(normalizeLoan)
 }
 
 export async function createOtherLoan(payload: CreateLoanPayload): Promise<LoanRecord> {
@@ -733,10 +884,11 @@ export async function createOtherLoan(payload: CreateLoanPayload): Promise<LoanR
     return newLoan
   }
 
-  return request<LoanRecord>("/loans", {
+  const response = await request<LoanApiRecord>("/loans", {
     method: "POST",
     body: JSON.stringify(payload),
   })
+  return normalizeLoan(response)
 }
 
 export async function recordLoanPayment(loanId: number, payload: RecordPaymentPayload): Promise<LoanRecord> {
@@ -773,8 +925,9 @@ export async function recordLoanPayment(loanId: number, payload: RecordPaymentPa
     return { ...loan }
   }
 
-  return request<LoanRecord>(`/loans/${loanId}/payments`, {
+  const response = await request<LoanApiRecord>(`/loans/${loanId}/payments`, {
     method: "POST",
     body: JSON.stringify(payload),
   })
+  return normalizeLoan(response)
 }

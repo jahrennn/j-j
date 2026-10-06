@@ -1,6 +1,6 @@
 # Jahren & John LPG Trading
 
-Web app for managing LPG refill and tank sales, inventory, LPG/general loans, and business settings.
+Web app for managing LPG tank sales, inventory, LPG/general loans, and business settings.
 
 ## Stack
 
@@ -90,5 +90,14 @@ App runs at `http://localhost:3000`.
 See [migration, environment configuration, checks, and recovery instructions](docs/LOAN_TRACKER_DEPLOYMENT.md).
 
 For the PT-210 receipt printer, see [sales receipt printing and paper setup](docs/THERMAL_RECEIPTS.md).
+
+For stock movement history, frozen historical sale profit, and its production
+migration, see [stock history deployment](docs/STOCK_HISTORY_DEPLOYMENT.md).
+
+For tank sale exchanges and the Tank Exchange Register migration, see the
+[tank exchange deployment guide](docs/TANK_EXCHANGE_DEPLOYMENT.md).
+
+For product-only labels and the data-preserving V12 migration, see the
+[product names deployment guide](docs/PRODUCT_NAMES_DEPLOYMENT.md).
 
 Loan endpoints (JWT required): `GET /api/loans?category=LPG|OTHER`, `POST /api/loans`, and `POST /api/loans/{id}/payments`.

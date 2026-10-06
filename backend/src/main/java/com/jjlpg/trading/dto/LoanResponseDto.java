@@ -1,5 +1,6 @@
 package com.jjlpg.trading.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -9,7 +10,7 @@ public record LoanResponseDto(
         String borrowerName,
         String loanDate,
         String description,
-        String itemsPurchased,
+        String productPurchased,
         BigDecimal totalAmount,
         BigDecimal amountPaid,
         BigDecimal remainingBalance,
@@ -17,4 +18,8 @@ public record LoanResponseDto(
         String notes,
         Long saleId,
         List<LoanPaymentDto> payments
-) {}
+) {
+    // Temporary response alias for older frontend builds during rollout.
+    @JsonProperty("itemsPurchased")
+    public String legacyItemsPurchased() { return productPurchased; }
+}
