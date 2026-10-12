@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   AreaChart,
@@ -30,6 +30,7 @@ import {
   type Product,
 } from "@/lib/api"
 import { cn, formatCurrency } from "@/lib/utils"
+import { useInventoryRefresh } from "@/lib/useInventoryRefresh"
 
 // ─── Colours ────────────────────────────────────────────────────────────────
 const CHART_COLORS = [
@@ -137,16 +138,38 @@ export function DashboardPage() {
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null)
   const [inventory, setInventory] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [inventoryLoading, setInventoryLoading] = useState(true)
+  const [inventoryRefreshing, setInventoryRefreshing] = useState(false)
+  const [inventoryError, setInventoryError] = useState("")
+  const inventoryRequest = useRef(0)
+
+  const refreshInventory = async () => {
+    const request = ++inventoryRequest.current
+    setInventoryRefreshing(true)
+    try {
+      const response = await getInventory()
+      if (request !== inventoryRequest.current) return
+      setInventory(response.products)
+      setInventoryError("")
+    } catch (err) {
+      if (request !== inventoryRequest.current) return
+      setInventoryError(err instanceof Error ? err.message : "Could not refresh stock")
+    } finally {
+      if (request === inventoryRequest.current) {
+        setInventoryLoading(false)
+        setInventoryRefreshing(false)
+      }
+    }
+  }
 
   useEffect(() => {
-    Promise.all([
-      getDashboardAnalytics(),
-      getInventory(),
-    ]).then(([a, inv]) => {
-      setAnalytics(a)
-      setInventory(inv.products)
-    }).finally(() => setLoading(false))
+    getDashboardAnalytics().then(setAnalytics).catch(console.error).finally(() => setLoading(false))
+    void refreshInventory()
   }, [])
+
+  useInventoryRefresh(() => {
+    if (!inventoryRefreshing) void refreshInventory()
+  })
 
   const today = analytics?.todaySummary
   const week = analytics?.last7DaysSummary
@@ -391,6 +414,15 @@ export function DashboardPage() {
             </Link>
           </div>
 
+          {inventoryError && (
+            <div role="alert" className="border-b border-border px-5 py-3 text-sm text-destructive">
+              Stock could not be refreshed. Displayed quantities may be outdated. {inventoryError}
+              <Button variant="outline" size="sm" disabled={inventoryRefreshing} onClick={() => void refreshInventory()}>
+                Retry
+              </Button>
+            </div>
+          )}
+
           {/* Low stock alert */}
           {lowStockProducts.length > 0 && (
             <div className="border-b border-border bg-destructive/5 px-5 py-2.5 text-xs text-destructive font-medium">
@@ -399,7 +431,7 @@ export function DashboardPage() {
           )}
 
           <div className="divide-y divide-border">
-            {loading ? (
+            {inventoryLoading ? (
               <div className="flex h-40 items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>

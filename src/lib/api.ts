@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import { currentMonthRange } from "@/lib/utils"
+import { currentMonthRange, philippineToday } from "@/lib/utils"
 
 /**
  * API layer for the Spring Boot backend.
@@ -26,6 +26,8 @@ export interface SaleRecord {
   deliveryMethod?: string
   paymentMethod?: string
   downpayment?: number
+  productId?: string | null
+  remainingStock?: number | null
 }
 
 type SaleApiRecord = Omit<SaleRecord, "productName"> & { productName?: string; itemName?: string }
@@ -512,6 +514,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     credentials: "include",
+    cache: "no-store",
     ...init,
     headers,
     signal: controller.signal,
@@ -539,7 +542,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!res.ok) {
-    throw new Error(await parseErrorMessage(res))
+    throw new ApiError(await parseErrorMessage(res), res.status)
   }
 
   // 204 No Content or empty body — don't try to parse JSON
@@ -626,7 +629,12 @@ export async function logout(): Promise<void> {
   })
 }
 
-export async function createSale(payload: {
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) { super(message) }
+}
+
+export interface CreateSalePayload {
+  requestId?: string
   productId: string
   quantity: number
   buyerName: string
@@ -635,29 +643,44 @@ export async function createSale(payload: {
   paymentMethod?: string
   downpayment?: number
   tankExchange?: { customerTankProductId: string; suppliedTankProductId: string }
-}): Promise<SaleRecord> {
+}
+
+const MOCK_SALE_REQUESTS = new Map<string, { payload: string; sale: SaleRecord }>()
+
+export async function createSale(payload: CreateSalePayload): Promise<SaleRecord> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
+    const previous = payload.requestId && MOCK_SALE_REQUESTS.get(payload.requestId)
+    if (previous) {
+      if (previous.payload !== JSON.stringify(payload)) throw new ApiError("Sale request was already used with different details", 409)
+      if (!MOCK_SALES.some((sale) => sale.id === previous.sale.id)) throw new ApiError("The original sale was deleted", 409)
+      return { ...previous.sale, remainingStock: MOCK_PRODUCTS.find((product) => product.id === previous.sale.productId)?.stock ?? null }
+    }
     const product = MOCK_PRODUCTS.find(p => p.id === payload.productId)
-    if (!product) throw new Error("Product not found")
+    if (!product) throw new ApiError("Product not found", 400)
     const customerTank = payload.tankExchange
       ? MOCK_PRODUCTS.find(p => p.id === payload.tankExchange?.customerTankProductId) : undefined
     if (payload.tankExchange && (payload.tankExchange.suppliedTankProductId !== product.id || !customerTank)) {
-      throw new Error("A tank exchange requires two current inventory products; the supplied tank must be the product sold")
+      throw new ApiError("A tank exchange requires two current inventory products; the supplied tank must be the product sold", 400)
     }
-    if (product.stock < payload.quantity) throw new Error("Insufficient stock")
+    if (product.stock < payload.quantity) throw new ApiError("Insufficient stock", 400)
+    if (!Number.isInteger(payload.quantity) || payload.quantity < 1) throw new ApiError("Quantity must be at least 1", 400)
+
+    const isUtang = payload.paymentMethod?.toUpperCase() === "UTANG"
+    const totalAmount = product.unitPrice * payload.quantity
+    const downpayment = isUtang ? (payload.downpayment ?? 0) : 0
+    if (downpayment < 0 || downpayment > totalAmount || (isUtang && totalAmount <= 0)) {
+      throw new ApiError("Invalid downpayment or credit sale amount", 400)
+    }
     
     const stockBefore = product.stock
     product.stock -= payload.quantity
     
     const address = payload.deliveryMethod === "Pick up" ? "Pick up" : (payload.address || "Unknown")
-    const isUtang = payload.paymentMethod === "Utang" || payload.paymentMethod === "UTANG"
-    const totalAmount = product.unitPrice * payload.quantity
-    const downpayment = isUtang ? (payload.downpayment ?? 0) : 0
 
     const newSale: SaleRecord = {
-      id: `sale-mock-${Date.now()}`,
-      date: new Date().toISOString().slice(0, 10),
+      id: `sale-mock-${crypto.randomUUID()}`,
+      date: philippineToday(),
       transactionId: `TXN-${Math.floor(Math.random() * 100000)}`,
       productName: product.name,
       quantity: payload.quantity,
@@ -668,7 +691,9 @@ export async function createSale(payload: {
       address: address,
       deliveryMethod: payload.deliveryMethod,
       paymentMethod: isUtang ? "UTANG" : "CASH",
-      downpayment: downpayment
+      downpayment: downpayment,
+      productId: product.id,
+      remainingStock: product.stock,
     }
     MOCK_SALES.unshift(newSale)
     recordMockMovement(product, "SALE", stockBefore, `Sale ${newSale.transactionId}`, newSale.transactionId)
@@ -708,7 +733,12 @@ export async function createSale(payload: {
       MOCK_LOANS.unshift(mockLoan)
     }
 
+    if (payload.requestId) MOCK_SALE_REQUESTS.set(payload.requestId, { payload: JSON.stringify(payload), sale: newSale })
     return newSale
+  }
+  if (payload.requestId) {
+    const support = await request<{ idempotentRecording: boolean }>("/sales/recording-support")
+    if (!support.idempotentRecording) throw new ApiError("The backend is still updating. Wait for deployment before recording sales.", 503)
   }
   if (payload.tankExchange) {
     // An older backend silently ignores tankExchange. Verify support before saving the sale.
@@ -846,7 +876,7 @@ export async function deleteSale(saleId: string, password: string): Promise<void
         throw new Error("Tank exchange sales cannot be deleted; retain them for exchange audit history")
       }
       const sale = MOCK_SALES[index]
-      const product = MOCK_PRODUCTS.find((candidate) => candidate.name === sale.productName)
+      const product = MOCK_PRODUCTS.find((candidate) => sale.productId ? candidate.id === sale.productId : candidate.name === sale.productName)
       if (product) {
         const before = product.stock
         product.stock += sale.quantity

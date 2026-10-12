@@ -16,8 +16,21 @@ public record SaleRecordDto(
         String address,
         String deliveryMethod,
         String paymentMethod,
-        BigDecimal downpayment
+        BigDecimal downpayment,
+        String productId,
+        Integer remainingStock
 ) {
+    public SaleRecordDto(String id, String date, String transactionId, String productName, int quantity,
+                         BigDecimal totalAmount, BigDecimal capital, BigDecimal profit, String buyerName,
+                         String address, String deliveryMethod, String paymentMethod, BigDecimal downpayment) {
+        this(id, date, transactionId, productName, quantity, totalAmount, capital, profit, buyerName,
+                address, deliveryMethod, paymentMethod, downpayment, null, null);
+    }
+
+    public SaleRecordDto withRemainingStock(Integer stock) {
+        return new SaleRecordDto(id, date, transactionId, productName, quantity, totalAmount, capital, profit,
+                buyerName, address, deliveryMethod, paymentMethod, downpayment, productId, stock);
+    }
     // Temporary response aliases keep an already-open older frontend working during rollout.
     @JsonProperty("itemName")
     public String legacyItemName() { return productName; }

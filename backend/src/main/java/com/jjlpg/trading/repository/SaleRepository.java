@@ -10,6 +10,9 @@ import java.util.List;
 import java.math.BigDecimal;
 
 public interface SaleRepository extends JpaRepository<Sale, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Sale s WHERE s.id = :id")
+    java.util.Optional<Sale> findByIdForUpdate(@Param("id") Long id);
 
     @Query("SELECT coalesce(sum(s.totalAmount - s.capital), 0) FROM Sale s WHERE s.saleDate BETWEEN :startDate AND :endDate")
     BigDecimal sumProfit(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);

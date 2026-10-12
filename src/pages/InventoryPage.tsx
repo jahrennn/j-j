@@ -1,12 +1,14 @@
 import { useEffect, useState, FormEvent, useRef } from "react"
-import { Cylinder, Package, Loader2, Plus, Edit2, Trash2, AlertTriangle, History, SlidersHorizontal } from "lucide-react"
+import { Cylinder, Package, Loader2, Plus, Edit2, Trash2, AlertTriangle, History, SlidersHorizontal, RefreshCw } from "lucide-react"
 import { Badge, Card, Button, Modal, Input, Label, Select } from "@/components/ui"
 import { getInventory, getStockMovements, createProduct, updateProduct, updateStock, deleteProduct, restockProduct, type Product, type StockMovementPage } from "@/lib/api"
 import { cn, formatCurrency } from "@/lib/utils"
+import { useInventoryRefresh } from "@/lib/useInventoryRefresh"
 
 export function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [addProductOpen, setAddProductOpen] = useState(false)
@@ -29,17 +31,23 @@ export function InventoryPage() {
   const passwordInputRef = useRef<HTMLInputElement>(null)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const inventoryRequest = useRef(0)
+  const movementRequest = useRef(0)
 
-  const fetchInventory = async () => {
+  const fetchInventory = async (background = false) => {
+    const request = ++inventoryRequest.current
     try {
-      setLoading(true)
+      if (!background) setLoading(true)
+      setRefreshing(true)
       const res = await getInventory()
+      if (request !== inventoryRequest.current) return
       setProducts(res.products)
       setError(null)
     } catch (err) {
+      if (request !== inventoryRequest.current) return
       setError(err instanceof Error ? err.message : "Failed to load inventory.")
     } finally {
-      setLoading(false)
+      if (request === inventoryRequest.current) { setLoading(false); setRefreshing(false) }
     }
   }
 
@@ -47,21 +55,31 @@ export function InventoryPage() {
     fetchInventory()
   }, [])
 
-  const fetchMovements = async () => {
-    setMovementLoading(true)
+  const fetchMovements = async (background = false) => {
+    const request = ++movementRequest.current
+    if (!background) setMovementLoading(true)
     try {
-      setMovements(await getStockMovements(movementProductId || undefined, movementPage))
+      const records = await getStockMovements(movementProductId || undefined, movementPage)
+      if (request !== movementRequest.current) return
+      setMovements(records)
       setMovementError(null)
     } catch (err) {
+      if (request !== movementRequest.current) return
       setMovementError(err instanceof Error ? err.message : "Failed to load stock history.")
     } finally {
-      setMovementLoading(false)
+      if (request === movementRequest.current) setMovementLoading(false)
     }
   }
 
   useEffect(() => {
     fetchMovements()
   }, [movementProductId, movementPage])
+
+  useInventoryRefresh(() => {
+    if (!isSubmitting && !isDeleting && !loading && !refreshing && !movementLoading) {
+      void fetchInventory(true); void fetchMovements(true)
+    }
+  })
 
   const refreshInventoryAndHistory = () => {
     fetchInventory()
@@ -185,10 +203,15 @@ export function InventoryPage() {
             Current stock levels for LPG tanks.
           </p>
         </div>
+        <div className="flex gap-2">
+        <Button variant="outline" disabled={loading || refreshing} onClick={refreshInventoryAndHistory}>
+          <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />{refreshing ? "Refreshing…" : "Refresh"}
+        </Button>
         <Button onClick={() => setAddProductOpen(true)}>
           <Plus className="h-4 w-4" />
           Add Product
         </Button>
+        </div>
       </div>
 
       <Card className="overflow-hidden">

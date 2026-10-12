@@ -16,6 +16,7 @@ public record CreateSaleRequest(
         @jakarta.validation.constraints.Size(max = 255)
         String buyerName,
 
+        @jakarta.validation.constraints.Size(max = 500)
         String address,
 
         @NotNull(message = "Delivery method is required")
@@ -30,10 +31,17 @@ public record CreateSaleRequest(
         BigDecimal downpayment,
 
         @jakarta.validation.Valid
-        TankExchangeRequest tankExchange
+        TankExchangeRequest tankExchange,
+
+        java.util.UUID requestId
 ) {
     public CreateSaleRequest(Long productId, Integer quantity, String buyerName, String address,
+                             String deliveryMethod, String paymentMethod, BigDecimal downpayment,
+                             TankExchangeRequest tankExchange) {
+        this(productId, quantity, buyerName, address, deliveryMethod, paymentMethod, downpayment, tankExchange, null);
+    }
+    public CreateSaleRequest(Long productId, Integer quantity, String buyerName, String address,
                              String deliveryMethod, String paymentMethod, BigDecimal downpayment) {
-        this(productId, quantity, buyerName, address, deliveryMethod, paymentMethod, downpayment, null);
+        this(productId, quantity, buyerName, address, deliveryMethod, paymentMethod, downpayment, null, null);
     }
 }

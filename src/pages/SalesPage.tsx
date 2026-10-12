@@ -27,6 +27,10 @@ import {
   type Product,
 } from "@/lib/api"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
+import { useInventoryRefresh } from "@/lib/useInventoryRefresh"
+import { ApiError, type CreateSalePayload } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
+import { clearPendingSale, readPendingSale, savePendingSale } from "@/lib/pendingSale"
 
 function toLocalDateString(d: Date): string {
   const offset = d.getTimezoneOffset() * 60000
@@ -68,12 +72,19 @@ const summaryCards = [
 ]
 
 export function SalesPage() {
+  const { username } = useAuth()
   const [range, setRange] = useState<DateRange>(defaultRange)
   const [data, setData] = useState<SalesResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [profitRevision, setProfitRevision] = useState(0)
 
   const [products, setProducts] = useState<Product[]>([])
+  const [inventoryLoading, setInventoryLoading] = useState(true)
+  const [inventoryError, setInventoryError] = useState("")
+  const [saleNotice, setSaleNotice] = useState("")
+  const [pendingSale, setPendingSale] = useState<CreateSalePayload | null>(() => readPendingSale(username))
+  const productRequest = useRef(0)
+  const saleBusy = useRef(false)
   const [recordSaleOpen, setRecordSaleOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deliveryMethod, setDeliveryMethod] = useState("Pick up")
@@ -115,14 +126,41 @@ export function SalesPage() {
     fetchSales()
   }, [range])
 
-  useEffect(() => {
-    getInventory().then((res) => {
+  const refreshProducts = async () => {
+    const request = ++productRequest.current
+    setInventoryLoading(true)
+    setInventoryError("")
+    try {
+      const res = await getInventory()
+      if (request !== productRequest.current) return
       setProducts(res.products)
-      setSelectedProductId(res.products.find((product) => product.stock > 0)?.id ?? "")
-      setCustomerTankId(res.products[0]?.id ?? "")
-    }).catch(console.error)
+      setSelectedProductId((current) => current ? (res.products.some((p) => p.id === current) ? current : "") : (res.products.find((p) => p.stock > 0)?.id ?? ""))
+      setCustomerTankId((current) => current ? (res.products.some((p) => p.id === current) ? current : "") : (res.products[0]?.id ?? ""))
+    } catch (err) {
+      if (request === productRequest.current) setInventoryError(err instanceof Error ? err.message : "Could not refresh stock")
+    } finally { if (request === productRequest.current) setInventoryLoading(false) }
+  }
+
+  useEffect(() => {
+    void refreshProducts()
     getSettings().then((res) => setBusinessName(res.businessName)).catch(console.error)
   }, [])
+
+  useInventoryRefresh(() => { if (!recordSaleOpen && !saleBusy.current && !inventoryLoading) void refreshProducts() })
+
+  const openSaleForm = () => {
+    setSaleError("")
+    setDeliveryMethod(pendingSale?.deliveryMethod ?? "Pick up")
+    setPaymentMethod(pendingSale?.paymentMethod ?? "Cash")
+    setDownpayment(pendingSale?.downpayment ?? 0)
+    setHasTankExchange(!!pendingSale?.tankExchange)
+    if (pendingSale) {
+      setSelectedProductId(pendingSale.productId)
+      setCustomerTankId(pendingSale.tankExchange?.customerTankProductId ?? "")
+    }
+    setRecordSaleOpen(true)
+    void refreshProducts()
+  }
 
   const openReceipt = (sale: SaleRecord) => {
     setReceiptError("")
@@ -165,7 +203,8 @@ export function SalesPage() {
 
   const handleRecordSale = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (isSubmitting) return
+    if (saleBusy.current) return
+    saleBusy.current = true
     setSaleError("")
     setIsSubmitting(true)
     try {
@@ -178,7 +217,8 @@ export function SalesPage() {
       const selectedPaymentMethod = (formData.get("paymentMethod") as string) || "Cash"
       const dpValue = selectedPaymentMethod === "Utang" ? (parseFloat(formData.get("downpayment") as string) || 0) : 0
 
-      await createSale({
+      const payload: CreateSalePayload = pendingSale ?? {
+        requestId: crypto.randomUUID(),
         productId,
         quantity,
         buyerName,
@@ -190,7 +230,17 @@ export function SalesPage() {
           customerTankProductId: customerTankId,
           suppliedTankProductId: productId,
         } : undefined,
-      })
+      }
+      savePendingSale(username, payload)
+      setPendingSale(payload)
+      const sale = await createSale(payload)
+      clearPendingSale(username)
+      setPendingSale(null)
+      const sku = products.find((product) => product.id === sale.productId)?.sku
+      setSaleNotice(`${sale.transactionId} recorded: ${sale.quantity} × ${sale.productName}${sku ? ` (${sku})` : ""}. ${sale.remainingStock == null ? "Refresh Inventory to confirm current stock." : `Stock remaining after confirmation: ${sale.remainingStock}.`}`)
+      if (sale.remainingStock != null && sale.productId) {
+        setProducts((current) => current.map((product) => product.id === sale.productId ? { ...product, stock: sale.remainingStock! } : product))
+      }
       setRecordSaleOpen(false)
       // reset form
       setDeliveryMethod("Pick up")
@@ -198,10 +248,17 @@ export function SalesPage() {
       setDownpayment(0)
       setHasTankExchange(false)
       fetchSales()
-      getInventory().then((res) => setProducts(res.products)).catch(console.error)
+      void refreshProducts()
     } catch (err) {
       setSaleError(err instanceof Error ? err.message : "Failed to record sale")
+      // Only an initial validation rejection is a definite failure. A rejected
+      // retry cannot establish whether an earlier attempt already committed.
+      if (!pendingSale && err instanceof ApiError && err.status === 400) {
+        clearPendingSale(username)
+        setPendingSale(null)
+      }
     } finally {
+      saleBusy.current = false
       setIsSubmitting(false)
     }
   }
@@ -215,6 +272,7 @@ export function SalesPage() {
       await deleteSale(deleteTarget.id, deletePassword)
       setDeleteTarget(null)
       fetchSales()
+      void refreshProducts()
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Failed to delete sale")
     } finally {
@@ -280,12 +338,16 @@ export function SalesPage() {
             <Printer className="h-4 w-4" />
             Print Receipt
           </Button>
-          <Button onClick={() => { setSaleError(""); setDeliveryMethod("Pick up"); setPaymentMethod("Cash"); setDownpayment(0); setHasTankExchange(false); setRecordSaleOpen(true) }}>
+          <Button onClick={openSaleForm}>
             <Plus className="h-4 w-4" />
-            Record Sale
+            {pendingSale ? "Confirm Pending Sale" : "Record Sale"}
           </Button>
         </div>
       </div>
+
+      {saleNotice && <div role="status" className="flex items-start justify-between gap-3 rounded-lg border border-success/30 bg-success/10 p-4 text-sm">
+        <p>{saleNotice}</p><Button variant="ghost" size="sm" onClick={() => setSaleNotice("")}>Dismiss</Button>
+      </div>}
 
       {/* Filters */}
       <Card className="p-4 sm:p-5">
@@ -502,9 +564,13 @@ export function SalesPage() {
         title="Record Sale"
       >
         <form onSubmit={handleRecordSale} className="flex flex-col gap-4">
+          {pendingSale && !isSubmitting && <p role="status" className="text-sm text-amber-700">This sale has not been confirmed. Retry the same sale to check whether it was saved; it will not deduct stock twice.</p>}
+          {inventoryLoading && <p role="status" className="text-sm text-muted-foreground">Refreshing current stock…</p>}
+          {inventoryError && <div role="alert" className="text-sm text-destructive">Stock could not be refreshed: {inventoryError} <Button type="button" variant="outline" size="sm" onClick={() => void refreshProducts()}>Refresh Stock</Button></div>}
+          <fieldset disabled={isSubmitting || pendingSale !== null || inventoryLoading || !!inventoryError} className="flex min-w-0 flex-col gap-4">
           <div className="space-y-1">
             <Label>Buyer Name</Label>
-            <Input name="buyerName" required placeholder="Enter buyer's name" />
+            <Input name="buyerName" required maxLength={255} defaultValue={pendingSale?.buyerName} placeholder="Enter buyer's name" />
           </div>
 
           <div className="space-y-1">
@@ -513,7 +579,7 @@ export function SalesPage() {
               <option value="" disabled>Select a product</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id} disabled={p.stock === 0}>
-                  {p.name} (Stock: {p.stock}) - {formatCurrency(p.unitPrice)}
+                  {p.name} ({p.sku}) · Stock: {p.stock} - {formatCurrency(p.unitPrice)}
                 </option>
               ))}
             </Select>
@@ -521,7 +587,7 @@ export function SalesPage() {
 
           <div className="space-y-1">
             <Label>Quantity</Label>
-            <Input name="quantity" type="number" min="1" required defaultValue={1} />
+            <Input name="quantity" type="number" min="1" max={products.find((p) => p.id === selectedProductId)?.stock} step="1" required defaultValue={pendingSale?.quantity ?? 1} />
           </div>
 
           {selectedProductId && (
@@ -587,7 +653,7 @@ export function SalesPage() {
           {deliveryMethod === "Deliver" && (
             <div className="space-y-1">
               <Label>Address</Label>
-              <Input name="address" required placeholder="Enter delivery address" />
+              <Input name="address" required maxLength={500} defaultValue={pendingSale?.address} placeholder="Enter delivery address" />
             </div>
           )}
 
@@ -613,10 +679,12 @@ export function SalesPage() {
             </div>
           )}
 
+          </fieldset>
+
           {saleError && <p role="alert" className="text-sm text-destructive">{saleError}</p>}
 
           <div className="mt-4 flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={() => {
+            <Button type="button" variant="ghost" disabled={isSubmitting} onClick={() => {
               setRecordSaleOpen(false)
               setDeliveryMethod("Pick up")
               setPaymentMethod("Cash")
@@ -625,8 +693,8 @@ export function SalesPage() {
             }}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Record Sale"}
+            <Button type="submit" disabled={isSubmitting || (!pendingSale && (inventoryLoading || !!inventoryError || !products.some((p) => p.id === selectedProductId && p.stock > 0)))}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : pendingSale ? "Retry Same Sale" : "Record Sale"}
             </Button>
           </div>
         </form>

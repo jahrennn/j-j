@@ -43,6 +43,11 @@ public class SalesController {
         return salesService.recordSale(request);
     }
 
+    @GetMapping("/recording-support")
+    public java.util.Map<String, Boolean> recordingSupport() {
+        return java.util.Map.of("idempotentRecording", true);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSale(@PathVariable Long id,
                                            @Valid @RequestBody DeleteSaleRequest request) {

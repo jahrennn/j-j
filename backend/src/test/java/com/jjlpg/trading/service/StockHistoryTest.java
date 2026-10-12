@@ -54,7 +54,7 @@ class StockHistoryTest {
                 .thenAnswer(call -> saved);
         SalesService service = new SalesService(sales, products, mock(UserRepository.class),
                 mock(PasswordEncoder.class), mock(LoanService.class), mock(LoanRepository.class), movements,
-                mock(TankExchangeRepository.class));
+                mock(TankExchangeRepository.class), mock(SaleRequestRepository.class));
 
         SaleRecordDto first = service.recordSale(new CreateSaleRequest(1L, 2, "Buyer", "", "Pick up", "Cash", null));
         assertEquals(money("1800.00"), first.totalAmount());
@@ -143,12 +143,12 @@ class StockHistoryTest {
         admin.setPasswordHash("hash");
         when(users.findByUsername("admin")).thenReturn(Optional.of(admin));
         when(passwords.matches("secret", "hash")).thenReturn(true);
-        when(sales.findById(7L)).thenReturn(Optional.of(sale));
+        when(sales.findByIdForUpdate(7L)).thenReturn(Optional.of(sale));
         when(loans.findBySaleId(7L)).thenReturn(Optional.empty());
         when(products.findByIdForUpdate(1L)).thenReturn(Optional.of(product));
 
         SalesService service = new SalesService(sales, products, users, passwords,
-                mock(LoanService.class), loans, movements, mock(TankExchangeRepository.class));
+                mock(LoanService.class), loans, movements, mock(TankExchangeRepository.class), mock(SaleRequestRepository.class));
         service.deleteSale(7L, "secret");
 
         assertEquals(10, product.getStock());
