@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class DatabaseSecurityTest {
     private static final List<String> TABLES = List.of(
             "users", "products", "sales", "business_settings", "loans",
-            "loan_payments", "stock_movements", "tank_exchanges", "flyway_schema_history");
+            "loan_payments", "stock_movements", "tank_exchanges", "expenses", "flyway_schema_history");
 
     @Autowired JdbcTemplate jdbc;
 

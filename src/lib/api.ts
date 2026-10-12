@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+import { currentMonthRange } from "@/lib/utils"
+
 /**
  * API layer for the Spring Boot backend.
  *
@@ -117,6 +119,124 @@ export interface SalesResponse {
 export interface DateRange {
   startDate: string
   endDate: string
+}
+
+export type ExpenseCategory = "FUEL" | "SALARY" | "MAINTENANCE" | "UTILITIES" | "OTHER"
+
+export interface ExpenseRecord {
+  id: number
+  expenseDate: string
+  category: ExpenseCategory
+  description: string
+  amount: number
+  paidTo: string | null
+  notes: string | null
+  status: "RECORDED" | "VOIDED"
+  createdBy: string
+  createdAt: string
+  voidReason: string | null
+  voidedBy: string | null
+  voidedAt: string | null
+}
+
+export interface CreateExpensePayload {
+  requestId: string
+  expenseDate: string
+  category: ExpenseCategory
+  description: string
+  amount: number
+  paidTo?: string
+  notes?: string
+}
+
+export interface ExpensesResponse {
+  summary: { totalAmount: number; fuelAmount: number; salaryAmount: number; otherAmount: number; recordedCount: number }
+  records: { content: ExpenseRecord[]; number: number; totalPages: number; totalElements: number }
+}
+
+export interface ExpenseProfit {
+  startDate: string
+  endDate: string
+  grossProfit: number
+  operatingExpenses: number
+  netProfit: number
+}
+
+const MOCK_EXPENSES: ExpenseRecord[] = []
+const MOCK_EXPENSE_REQUESTS = new Map<string, { id: number; payload: string }>()
+
+export async function getExpenses(range: DateRange, category?: ExpenseCategory, page = 0, size = 25): Promise<ExpensesResponse> {
+  if (USE_MOCK) {
+    const rows = MOCK_EXPENSES.filter((entry) => (!range.startDate || entry.expenseDate >= range.startDate)
+      && (!range.endDate || entry.expenseDate <= range.endDate) && (!category || entry.category === category))
+      .sort((a, b) => b.expenseDate.localeCompare(a.expenseDate) || b.id - a.id)
+    const active = rows.filter((entry) => entry.status === "RECORDED")
+    const sum = (entries: ExpenseRecord[]) => entries.reduce((total, entry) => total + Math.round(entry.amount * 100), 0) / 100
+    return {
+      summary: {
+        totalAmount: sum(active), fuelAmount: sum(active.filter((entry) => entry.category === "FUEL")),
+        salaryAmount: sum(active.filter((entry) => entry.category === "SALARY")),
+        otherAmount: sum(active.filter((entry) => entry.category !== "FUEL" && entry.category !== "SALARY")),
+        recordedCount: active.length,
+      },
+      records: { content: rows.slice(page * size, (page + 1) * size), number: page, totalPages: Math.ceil(rows.length / size), totalElements: rows.length },
+    }
+  }
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (range.startDate) params.set("startDate", range.startDate)
+  if (range.endDate) params.set("endDate", range.endDate)
+  if (category) params.set("category", category)
+  return request<ExpensesResponse>(`/expenses?${params}`)
+}
+
+export async function getExpenseProfit(range?: DateRange): Promise<ExpenseProfit> {
+  if (USE_MOCK) {
+    const dates = range ?? currentMonthRange()
+    const [sales, expenses] = await Promise.all([getSales(dates), getExpenses(dates)])
+    return { ...dates, grossProfit: sales.summary.totalProfit, operatingExpenses: expenses.summary.totalAmount,
+      netProfit: Math.round((sales.summary.totalProfit - expenses.summary.totalAmount) * 100) / 100 }
+  }
+  const params = new URLSearchParams()
+  if (range?.startDate) params.set("startDate", range.startDate)
+  if (range?.endDate) params.set("endDate", range.endDate)
+  return request<ExpenseProfit>(`/expenses/profit${params.size ? `?${params}` : ""}`)
+}
+
+export async function createExpense(payload: CreateExpensePayload): Promise<ExpenseRecord> {
+  if (USE_MOCK) {
+    if (!Number.isFinite(payload.amount) || payload.amount <= 0) throw new Error("Amount must be greater than zero")
+    if (!payload.description.trim()) throw new Error("Description is required")
+    if (payload.category === "SALARY" && !payload.paidTo?.trim()) throw new Error("Enter the employee paid")
+    const previous = MOCK_EXPENSE_REQUESTS.get(payload.requestId)
+    if (previous) {
+      if (previous.payload !== JSON.stringify(payload)) throw new Error("This expense request was already saved with different details")
+      return MOCK_EXPENSES.find((entry) => entry.id === previous.id)!
+    }
+    const entry: ExpenseRecord = {
+      id: Math.max(0, ...MOCK_EXPENSES.map((expense) => expense.id)) + 1,
+      expenseDate: payload.expenseDate, category: payload.category, description: payload.description.trim(),
+      amount: payload.amount, paidTo: payload.paidTo?.trim() || null, notes: payload.notes?.trim() || null,
+      status: "RECORDED", createdBy: "admin", createdAt: new Date().toISOString(),
+      voidReason: null, voidedBy: null, voidedAt: null,
+    }
+    MOCK_EXPENSES.push(entry)
+    MOCK_EXPENSE_REQUESTS.set(payload.requestId, { id: entry.id, payload: JSON.stringify(payload) })
+    return entry
+  }
+  return request<ExpenseRecord>("/expenses", { method: "POST", body: JSON.stringify(payload) })
+}
+
+export async function voidExpense(id: number, reason: string): Promise<ExpenseRecord> {
+  if (USE_MOCK) {
+    const entry = MOCK_EXPENSES.find((expense) => expense.id === id)
+    if (!entry) throw new Error("Expense not found")
+    if (!reason.trim()) throw new Error("A reason is required")
+    if (entry.status !== "VOIDED") Object.assign(entry, {
+      status: "VOIDED", voidReason: reason.trim(), voidedBy: "admin", voidedAt: new Date().toISOString(),
+    })
+    return entry
+  }
+  return request<ExpenseRecord>(`/expenses/${id}/void`, { method: "POST", body: JSON.stringify({ reason }) })
 }
 
 export interface Product {

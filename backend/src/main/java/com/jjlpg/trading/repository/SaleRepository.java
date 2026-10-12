@@ -7,8 +7,12 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.math.BigDecimal;
 
 public interface SaleRepository extends JpaRepository<Sale, Long> {
+
+    @Query("SELECT coalesce(sum(s.totalAmount - s.capital), 0) FROM Sale s WHERE s.saleDate BETWEEN :startDate AND :endDate")
+    BigDecimal sumProfit(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 
     @Query("""
             SELECT s FROM Sale s

@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { Badge, Button, Card, Modal, Label, Input, Select } from "@/components/ui"
 import { DateRangePicker } from "@/components/DateRangePicker"
+import { ExpenseProfitPanel } from "@/components/ExpenseProfitPanel"
 import { SaleReceipt, downloadSaleReceiptPng, printSaleReceipt } from "@/components/SaleReceipt"
 import {
   getSales,
@@ -64,19 +65,13 @@ const summaryCards = [
     format: (v: number) => formatCurrency(v),
     tint: "bg-success/15 text-success",
   },
-  {
-    key: "totalProfit" as const,
-    label: "Total Profit",
-    icon: DollarSign, // Or another icon like PiggyBank
-    format: (v: number) => formatCurrency(v),
-    tint: "bg-primary/10 text-primary",
-  },
 ]
 
 export function SalesPage() {
   const [range, setRange] = useState<DateRange>(defaultRange)
   const [data, setData] = useState<SalesResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profitRevision, setProfitRevision] = useState(0)
 
   const [products, setProducts] = useState<Product[]>([])
   const [recordSaleOpen, setRecordSaleOpen] = useState(false)
@@ -108,6 +103,7 @@ export function SalesPage() {
       setLoading(true)
       const res = await getSales(range)
       setData(res)
+      setProfitRevision((value) => value + 1)
     } catch (err) {
       console.error(err)
     } finally {
@@ -229,7 +225,7 @@ export function SalesPage() {
   const handleExportCSV = () => {
     if (!data || data.records.length === 0) return
 
-    const headers = ["Date", "Transaction ID", "Buyer Name", "Product", "Quantity", "Total Amount (PHP)", "Capital (PHP)", "Profit (PHP)", "Address"]
+    const headers = ["Date", "Transaction ID", "Buyer Name", "Product", "Quantity", "Total Amount (PHP)", "Capital (PHP)", "Gross Profit (PHP)", "Address"]
     const rows = data.records.map((r) => [
       r.date,
       r.transactionId,
@@ -297,7 +293,7 @@ export function SalesPage() {
       </Card>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {summaryCards.map(({ key, label, icon: Icon, format, tint }) => (
           <Card key={key} className="p-5">
             <div className="flex items-center justify-between">
@@ -324,6 +320,8 @@ export function SalesPage() {
         ))}
       </div>
 
+      <ExpenseProfitPanel range={range} revision={profitRevision} title="Profit after operating expenses" />
+
       {/* Table */}
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
@@ -347,7 +345,7 @@ export function SalesPage() {
                 <th className="px-5 py-3 text-right font-medium">Quantity</th>
                 <th className="px-5 py-3 text-right font-medium">Capital</th>
                 <th className="px-5 py-3 text-right font-medium">Total Amount</th>
-                <th className="px-5 py-3 text-right font-medium">Profit</th>
+                <th className="px-5 py-3 text-right font-medium">Gross Profit</th>
                 <th className="px-5 py-3 font-medium" />
               </tr>
             </thead>

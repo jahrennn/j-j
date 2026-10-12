@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom"
-import { LayoutDashboard, Receipt, Package, CreditCard, Settings, Flame, X, ArrowRightLeft } from "lucide-react"
+import { LayoutDashboard, Receipt, Package, CreditCard, Settings, Flame, X, ArrowRightLeft, Wallet } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/tank-exchanges", label: "Tank Exchange Register", icon: ArrowRightLeft },
   { to: "/loans", label: "Loan Tracker", icon: CreditCard },
+  { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/settings", label: "Settings", icon: Settings },
 ]
 

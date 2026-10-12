@@ -22,6 +22,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { Badge, Button, Card } from "@/components/ui"
+import { ExpenseProfitPanel } from "@/components/ExpenseProfitPanel"
 import {
   getDashboardAnalytics,
   getInventory,
@@ -173,6 +174,8 @@ export function DashboardPage() {
         </p>
       </div>
 
+      <ExpenseProfitPanel />
+
       {/* ── Today's KPIs ── */}
       <section>
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -186,7 +189,7 @@ export function DashboardPage() {
             tint="bg-primary/10 text-primary"
           />
           <StatCard
-            label="Profit"
+            label="Gross Profit"
             value={today ? formatCurrency(today.totalProfit) : undefined}
             icon={TrendingUp}
             tint="bg-success/15 text-success"
@@ -219,7 +222,7 @@ export function DashboardPage() {
             tint="bg-primary/10 text-primary"
           />
           <StatCard
-            label="Profit"
+            label="Gross Profit"
             value={week ? formatCurrency(week.totalProfit) : undefined}
             icon={TrendingUp}
             tint="bg-success/15 text-success"
@@ -243,7 +246,7 @@ export function DashboardPage() {
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h3 className="font-semibold text-foreground">Revenue & Profit</h3>
+            <h3 className="font-semibold text-foreground">Revenue & Gross Profit</h3>
             <p className="text-xs text-muted-foreground mt-0.5">Last 30 days</p>
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -253,7 +256,7 @@ export function DashboardPage() {
             </span>
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-success" />
-              Profit
+              Gross Profit
             </span>
           </div>
         </div>
@@ -304,7 +307,7 @@ export function DashboardPage() {
                 <Area
                   type="monotone"
                   dataKey="profit"
-                  name="Profit"
+                  name="Gross Profit"
                   stroke="hsl(158 64% 52%)"
                   strokeWidth={2}
                   fill="url(#gradProfit)"
