@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:stock": "node --test tests/stock-reliability.test.mjs",
+    "check:live-stock": "node scripts/check-live-stock-ui.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

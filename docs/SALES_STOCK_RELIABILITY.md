@@ -10,6 +10,7 @@ The updated screens:
 
 - Refresh stock in Inventory, Sales, and Dashboard when returning to the visible app and every 30 seconds while visible. Inventory has a manual Refresh button. This is periodic refresh, not an instant live subscription. Dashboard stock refreshes independently of analytics and warns when its stock refresh fails.
 - Fetch stock again when opening Record Sale, report refresh failures, and prevent recording a new sale against a failed stock fetch.
+- Keep refreshing while Record Sale is open. Background reads preserve the selected product and editable buyer/quantity fields. A separate available-stock label and a Refresh Stock button make the latest count visible outside the native dropdown. Reads started before submission are invalidated, and stock is fetched again after both successful and failed attempts.
 - Ignore older inventory responses arriving after newer requests.
 - Show SKUs in the sales product dropdown so similar product names can be distinguished.
 - Show a successful sale's transaction ID, product, quantity, and backend-confirmed remaining stock. The Inventory page includes the matching stock movement, such as `94 → 93`.
@@ -17,6 +18,18 @@ The updated screens:
 - Preserve the pending request ID when a retry is rejected, including HTTP 400, 403, 404, 409, or 429. A rejected retry cannot prove that an earlier attempt did not save. Only an initial HTTP 400 validation rejection clears the request for editing; successful confirmation clears it normally.
 
 The retry-handling and Dashboard follow-up fixes are frontend-only and require no additional database migration. They do not recalculate historical stock or modify saved business records. The already-existing V15 migration below belongs to the earlier backend retry-protection changes and remains unchanged.
+
+## October 13 production trace
+
+A read-only database check at approximately 8:58 PM Philippine time found SK-2.7 stock at 110. The two sales that day had exactly one matching deduction each: 116 → 114 at 6:07 PM and 114 → 110 at 6:09 PM. All current product balances matched their latest movement. V15 was installed, but both SK sales lacked a request-ledger entry.
+
+The public frontend at `https://j-j-zeta.vercel.app/login` served `/assets/index-BVz9lEZj.js`, with an HTML Last-Modified timestamp of October 12 at 12:13 PM Philippine time. That JavaScript lacked the stock-refresh listeners, request IDs, recording-support check, and confirmation messages already present in commit `0101b83`. This establishes that the production frontend was still old; it does not establish why Vercel had not published the newer commit.
+
+The newer source also skipped stock refresh whenever Record Sale was open. A failing regression reproduced the dropdown remaining at 116 after another simulated device reduced stock to 114. That guard is now removed, with non-blocking background refresh and a separate stock label.
+
+`vercel.json` now explicitly selects Vite, `pnpm build`, and `dist`, so a source deployment rebuilds the frontend. Deploy the latest source to the production project, with `VITE_API_BASE_URL=https://jjlpg-backend.onrender.com/api`. Rebuild rather than uploading the existing checked-in `dist`, which was compiled for localhost. No backend deployment or database migration is needed for this follow-up.
+
+After deployment, run `pnpm check:live-stock` to read only public HTML/JavaScript and verify the expected fixes are present at the production URL. This check fails against the old live bundle. Then reload existing app tabs/devices. An already-open page continues running its loaded JavaScript until it is reloaded.
 
 Two additional issues were found:
 
@@ -46,7 +59,9 @@ The read-only queries in `sales-stock-audit.sql` can help compare the database d
 
 ## Verification
 
-The frontend follow-up was checked with `pnpm test:stock` (10 checks), TypeScript, and a production-mode build written to a temporary directory. The regression checks execute the actual Sales and Dashboard components with in-memory APIs, storage, hooks, and timers. They cover lost responses followed by rejected retries across reloads, initial validation failures, rate limits, focus/timer refresh, refresh failure recovery, and stale responses arriving late. No live API, database, migration, or backend database test is used by these checks. CI runs them before building the frontend. These checks do not verify a deployed browser session.
+The frontend follow-up was checked with `pnpm test:stock`, TypeScript, and a production-mode build written to a temporary directory. The regression checks execute the actual Sales and Dashboard components with in-memory APIs, storage, hooks, and timers. They cover lost responses followed by rejected retries across reloads, initial validation failures, rate limits, focus/timer refresh, refresh failure recovery, stale responses arriving late, and an open sale dropdown changing after sales/restocks on another device. No live API, database, migration, or backend database test is used by these checks. CI runs them before building the frontend.
+
+A real browser connected only to an isolated localhost in-memory API also verified that the open sale form changed from 116 to 114 on automatic refresh without losing its buyer name or product selection. A simulated sale then displayed confirmed stock of 113, and reopening Record Sale showed 113 in both the dropdown and available-stock label. These checks do not verify an authenticated production browser session.
 
 Earlier verification of the existing backend changes:
 
