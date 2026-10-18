@@ -80,6 +80,7 @@ export function SalesPage() {
 
   const [products, setProducts] = useState<Product[]>([])
   const [inventoryLoading, setInventoryLoading] = useState(true)
+  const [inventoryRefreshing, setInventoryRefreshing] = useState(false)
   const [inventoryError, setInventoryError] = useState("")
   const [saleNotice, setSaleNotice] = useState("")
   const [pendingSale, setPendingSale] = useState<CreateSalePayload | null>(() => readPendingSale(username))
@@ -126,19 +127,25 @@ export function SalesPage() {
     fetchSales()
   }, [range])
 
-  const refreshProducts = async () => {
+  const refreshProducts = async (background = false) => {
     const request = ++productRequest.current
-    setInventoryLoading(true)
-    setInventoryError("")
+    if (!background) setInventoryLoading(true)
+    setInventoryRefreshing(true)
     try {
       const res = await getInventory()
       if (request !== productRequest.current) return
       setProducts(res.products)
+      setInventoryError("")
       setSelectedProductId((current) => current ? (res.products.some((p) => p.id === current) ? current : "") : (res.products.find((p) => p.stock > 0)?.id ?? ""))
       setCustomerTankId((current) => current ? (res.products.some((p) => p.id === current) ? current : "") : (res.products[0]?.id ?? ""))
     } catch (err) {
       if (request === productRequest.current) setInventoryError(err instanceof Error ? err.message : "Could not refresh stock")
-    } finally { if (request === productRequest.current) setInventoryLoading(false) }
+    } finally {
+      if (request === productRequest.current) {
+        setInventoryLoading(false)
+        setInventoryRefreshing(false)
+      }
+    }
   }
 
   useEffect(() => {
@@ -146,7 +153,9 @@ export function SalesPage() {
     getSettings().then((res) => setBusinessName(res.businessName)).catch(console.error)
   }, [])
 
-  useInventoryRefresh(() => { if (!recordSaleOpen && !saleBusy.current && !inventoryLoading) void refreshProducts() })
+  useInventoryRefresh(() => {
+    if (!saleBusy.current && !inventoryRefreshing) void refreshProducts(true)
+  })
 
   const openSaleForm = () => {
     setSaleError("")
@@ -205,6 +214,10 @@ export function SalesPage() {
     e.preventDefault()
     if (saleBusy.current) return
     saleBusy.current = true
+    // A read started before this sale must not replace its confirmed stock.
+    ++productRequest.current
+    setInventoryLoading(false)
+    setInventoryRefreshing(false)
     setSaleError("")
     setIsSubmitting(true)
     try {
@@ -248,7 +261,6 @@ export function SalesPage() {
       setDownpayment(0)
       setHasTankExchange(false)
       fetchSales()
-      void refreshProducts()
     } catch (err) {
       setSaleError(err instanceof Error ? err.message : "Failed to record sale")
       // Only an initial validation rejection is a definite failure. A rejected
@@ -260,6 +272,7 @@ export function SalesPage() {
     } finally {
       saleBusy.current = false
       setIsSubmitting(false)
+      void refreshProducts(true)
     }
   }
 
@@ -308,6 +321,8 @@ export function SalesPage() {
     link.click()
     URL.revokeObjectURL(url)
   }
+
+  const selectedProduct = products.find((product) => product.id === selectedProductId)
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -583,11 +598,16 @@ export function SalesPage() {
                 </option>
               ))}
             </Select>
+            {selectedProduct && (
+              <p role="status" className="text-xs text-muted-foreground">
+                Available stock for {selectedProduct.name} ({selectedProduct.sku}): {selectedProduct.stock}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">
             <Label>Quantity</Label>
-            <Input name="quantity" type="number" min="1" max={products.find((p) => p.id === selectedProductId)?.stock} step="1" required defaultValue={pendingSale?.quantity ?? 1} />
+            <Input name="quantity" type="number" min="1" max={selectedProduct?.stock} step="1" required defaultValue={pendingSale?.quantity ?? 1} />
           </div>
 
           {selectedProductId && (

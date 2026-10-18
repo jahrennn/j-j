@@ -206,3 +206,80 @@ test("Dashboard ignores an older inventory response arriving after a newer respo
   assert.doesNotMatch(app.text(), /94 left/)
   app.unmount()
 })
+
+test("the open sale dropdown refreshes after another device sells or restocks", async () => {
+  let stock = 116
+  const app = page("SalesPage", { getInventory: async () => ({ products: [product(stock)] }) })
+  app.render(); await app.flush(); await app.openSale()
+  assert.equal(app.find((node) => node.type === "Modal" && node.props.title === "Record Sale").props.isOpen, true)
+  assert.match(app.text(), /Stock: 116/)
+  stock = 114
+  for (const { fn } of app.timers.values()) fn()
+  await app.flush()
+  assert.match(app.text(), /Stock: 114/)
+  assert.equal(app.find((node) => node.props.name === "quantity").props.max, 114)
+  stock = 141
+  app.window.dispatch("focus"); await app.flush()
+  assert.match(app.text(), /Stock: 141/)
+  assert.equal(app.find((node) => node.props.name === "productId").props.value, "6")
+  app.unmount()
+})
+
+test("a stock read started before a sale cannot overwrite the confirmed remaining stock", async () => {
+  let defer = false
+  let resolveRead
+  let stock = 94
+  const app = page("SalesPage", {
+    getInventory: () => defer ? new Promise((resolve) => { resolveRead = resolve }) : Promise.resolve({ products: [product(stock)] }),
+    createSale: async () => {
+      stock = 93
+      defer = false
+      // The earlier GET returns its old snapshot while this sale is saving.
+      resolveRead({ products: [product(94)] })
+      await new Promise(setImmediate)
+      return { id: "1", transactionId: "TXN-1", productId: "6", productName: "SK 2.7kg", quantity: 1, remainingStock: 93 }
+    },
+  })
+  app.render(); await app.flush(); await app.openSale()
+  defer = true
+  app.window.dispatch("focus"); app.render()
+  assert.equal(app.find((node) => node.type === "fieldset").props.disabled, false, "background refresh must preserve an editable sale form")
+  await app.submit()
+  assert.match(app.text(), /Stock: 93/)
+  assert.match(app.text(), /Stock remaining after confirmation: 93/)
+  app.unmount()
+})
+
+test("an open sale form refreshes on reconnect and page restoration, including sold-out stock", async () => {
+  let stock = 94
+  let calls = 0
+  const app = page("SalesPage", { getInventory: async () => { calls++; return { products: [product(stock)] } } })
+  app.render(); await app.flush(); await app.openSale()
+  stock = 120
+  app.window.dispatch("online"); await app.flush()
+  assert.match(app.text(), /Stock: 120/)
+  stock = 0
+  app.window.dispatch("pageshow"); await app.flush()
+  assert.match(app.text(), /Stock: 0/)
+  assert.equal(app.find((node) => node.type === "option" && node.props.value === "6").props.disabled, true)
+  assert.equal(app.find((node) => node.props.type === "submit").props.disabled, true)
+  const beforeUnmount = calls
+  app.unmount()
+  app.window.dispatch("online"); app.window.dispatch("pageshow"); app.window.dispatch("focus")
+  await app.flush()
+  assert.equal(calls, beforeUnmount, "refresh listeners must be cleaned up on navigation")
+})
+
+test("confirmation updates the dropdown even when the subsequent stock refresh fails", async () => {
+  let saved = false
+  const app = page("SalesPage", {
+    getInventory: async () => { if (saved) throw new Error("Offline"); return { products: [product(94)] } },
+    createSale: async () => { saved = true; return { id: "1", transactionId: "TXN-1", productId: "6", productName: "SK 2.7kg", quantity: 1, remainingStock: 93 } },
+  })
+  app.render(); await app.flush(); await app.openSale(); await app.submit()
+  assert.match(app.text(), /Stock: 93/)
+  assert.match(app.text(), /Stock remaining after confirmation: 93/)
+  assert.match(app.text(), /Displayed quantities may be outdated/)
+  assert.equal(app.storage.size, 0, "a failed refresh must not turn a saved sale into a retry")
+  app.unmount()
+})
