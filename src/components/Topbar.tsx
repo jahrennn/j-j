@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Menu, User, LogOut, ChevronDown } from "lucide-react"
 import { useAuth } from "@/lib/auth"
+import { BrandLogo } from "@/components/BrandLogo"
+import { BRAND_NAME } from "@/lib/brand"
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { username, signOut } = useAuth()
@@ -26,7 +28,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:px-6">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <button
           onClick={onMenu}
           className="rounded-md p-2 text-muted-foreground hover:bg-muted lg:hidden"
@@ -34,12 +36,13 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <h1 className="text-base font-semibold text-foreground sm:text-lg">
-          Jahren and John LPG Trading
+        <BrandLogo decorative className="h-9 w-9 rounded-lg bg-white p-0.5" />
+        <h1 className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-lg" title={BRAND_NAME}>
+          {BRAND_NAME}
         </h1>
       </div>
 
-      <div className="relative" ref={ref}>
+      <div className="relative ml-3 shrink-0" ref={ref}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
           className="flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 text-sm hover:bg-muted"
