@@ -2,6 +2,12 @@ import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Menu, User, LogOut, ChevronDown } from "lucide-react"
 import { useAuth } from "@/lib/auth"
+<<<<<<< Updated upstream
+=======
+import { BrandLogo } from "@/components/BrandLogo"
+import { BRAND_NAME } from "@/lib/brand"
+import { ThemeToggle } from "@/components/ThemeToggle"
+>>>>>>> Stashed changes
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { username, signOut } = useAuth()
@@ -39,6 +45,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         </h1>
       </div>
 
+<<<<<<< Updated upstream
       <div className="relative" ref={ref}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
@@ -52,24 +59,42 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           </span>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </button>
+=======
+      <div className="ml-2 flex shrink-0 items-center gap-1 sm:gap-2">
+        <ThemeToggle />
+        <div className="relative" ref={ref}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 text-sm hover:bg-muted"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <User className="h-4 w-4" />
+            </span>
+            <span className="hidden font-medium text-foreground sm:inline">
+              {username ?? "Admin"}
+            </span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          </button>
+>>>>>>> Stashed changes
 
-        {menuOpen && (
-          <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg">
-            <div className="border-b border-border px-3 py-2">
-              <p className="text-sm font-medium text-popover-foreground">
-                {username ?? "Admin"}
-              </p>
-              <p className="text-xs text-muted-foreground">Administrator</p>
+          {menuOpen && (
+            <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg">
+              <div className="border-b border-border px-3 py-2">
+                <p className="text-sm font-medium text-popover-foreground">
+                  {username ?? "Admin"}
+                </p>
+                <p className="text-xs text-muted-foreground">Administrator</p>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-muted"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
             </div>
-            <button
-              onClick={handleSignOut}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-muted"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </header>
   )

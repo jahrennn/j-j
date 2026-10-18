@@ -564,9 +564,20 @@ export function SalesPage() {
         title="Record Sale"
       >
         <form onSubmit={handleRecordSale} className="flex flex-col gap-4">
+<<<<<<< Updated upstream
           {pendingSale && !isSubmitting && <p role="status" className="text-sm text-amber-700">This sale has not been confirmed. Retry the same sale to check whether it was saved; it will not deduct stock twice.</p>}
           {inventoryLoading && <p role="status" className="text-sm text-muted-foreground">Refreshing current stock…</p>}
           {inventoryError && <div role="alert" className="text-sm text-destructive">Stock could not be refreshed: {inventoryError} <Button type="button" variant="outline" size="sm" onClick={() => void refreshProducts()}>Refresh Stock</Button></div>}
+=======
+          {pendingSale && !isSubmitting && <p role="status" className="text-sm text-amber-700 dark:text-amber-400">This sale has not been confirmed. Retry the same sale to check whether it was saved; it will not deduct stock twice.</p>}
+          <div className="flex items-center justify-between gap-3">
+            <p role="status" className="text-sm text-muted-foreground">
+              {inventoryRefreshing ? "Refreshing current stock…" : "Stock refreshes automatically while this form is open."}
+            </p>
+            <Button type="button" variant="outline" size="sm" disabled={isSubmitting || inventoryRefreshing} onClick={() => void refreshProducts(true)}>Refresh Stock</Button>
+          </div>
+          {inventoryError && <div role="alert" className="text-sm text-destructive">Stock could not be refreshed. Displayed quantities may be outdated: {inventoryError}</div>}
+>>>>>>> Stashed changes
           <fieldset disabled={isSubmitting || pendingSale !== null || inventoryLoading || !!inventoryError} className="flex min-w-0 flex-col gap-4">
           <div className="space-y-1">
             <Label>Buyer Name</Label>

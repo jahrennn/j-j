@@ -301,17 +301,17 @@ export function DashboardPage() {
                     <stop offset="95%" stopColor="hsl(158 64% 52%)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.91 0.01 247 / 0.5)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 11, fill: "oklch(0.55 0.02 256)" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                   interval={4}
                 />
                 <YAxis
                   tickFormatter={(v: number) => `₱${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
-                  tick={{ fontSize: 11, fill: "oklch(0.55 0.02 256)" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                   width={52}
@@ -366,18 +366,18 @@ export function DashboardPage() {
                   layout="vertical"
                   margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.91 0.01 247 / 0.5)" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                   <XAxis
                     type="number"
                     tickFormatter={(v: number) => `₱${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
-                    tick={{ fontSize: 11, fill: "oklch(0.55 0.02 256)" }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis
                     type="category"
                     dataKey="name"
-                    tick={{ fontSize: 11, fill: "oklch(0.55 0.02 256)" }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     tickLine={false}
                     axisLine={false}
                     width={120}
@@ -385,11 +385,15 @@ export function DashboardPage() {
                   <Tooltip
                     formatter={(v) => [formatCurrency(Number(v ?? 0)), "Revenue"]}
                     contentStyle={{
-                      background: "white",
-                      border: "1px solid oklch(0.91 0.01 247)",
+                      background: "var(--popover)",
+                      color: "var(--popover-foreground)",
+                      border: "1px solid var(--border)",
                       borderRadius: "12px",
                       fontSize: "13px",
                     }}
+                    labelStyle={{ color: "var(--popover-foreground)" }}
+                    itemStyle={{ color: "var(--popover-foreground)" }}
+                    cursor={{ fill: "var(--muted)" }}
                   />
                   <Bar dataKey="revenue" radius={[0, 6, 6, 0]}>
                     {(analytics?.productBreakdown ?? []).map((_, idx) => (
