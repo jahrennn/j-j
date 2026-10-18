@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom"
-import { LayoutDashboard, Receipt, Package, CreditCard, Settings, Flame, X, ArrowRightLeft, Wallet } from "lucide-react"
+import { LayoutDashboard, Receipt, Package, CreditCard, Settings, X, ArrowRightLeft, Wallet } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { BrandLogo } from "@/components/BrandLogo"
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -36,9 +37,7 @@ export function Sidebar({
       >
         <div className="flex h-16 items-center justify-between gap-2 border-b border-sidebar-border px-5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-active">
-              <Flame className="h-5 w-5 text-accent-foreground" />
-            </div>
+            <BrandLogo decorative className="h-10 w-10 rounded-lg bg-white p-0.5" />
             <div className="leading-tight">
               <p className="text-sm font-semibold">Jahren &amp; John</p>
               <p className="text-xs text-sidebar-muted">LPG Trading</p>

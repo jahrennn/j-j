@@ -1,4 +1,6 @@
 import type { SaleRecord } from "@/lib/api"
+import { BrandLogo } from "@/components/BrandLogo"
+import { BRAND_MARK_URL } from "@/lib/brand"
 
 // The PT-210 uses a 57 mm roll but prints on about 48 mm of that width.
 const receiptStyles = `
@@ -6,6 +8,8 @@ const receiptStyles = `
     padding: 3mm 0 4mm; background: white; color: black; font: 11px/1.35 Arial, sans-serif;
     overflow-wrap: anywhere; }
   .sale-receipt * { box-sizing: border-box; }
+  .sale-receipt .brand-mark { display: block; width: 14mm; height: 14mm;
+    margin: 0 auto 2mm; object-fit: contain; filter: grayscale(1); }
   .sale-receipt h1 { margin: 0; text-align: center; font-size: 13px; font-weight: 700; }
   .sale-receipt .subtitle { margin: 1mm 0 2mm; text-align: center; }
   .sale-receipt .rule { border-top: 1px dashed black; margin: 2mm 0; }
@@ -36,6 +40,7 @@ export function SaleReceipt({ sale, businessName }: { sale: SaleRecord; business
     <>
       <style>{receiptStyles}</style>
       <article className="sale-receipt" aria-label={`Receipt for ${sale.transactionId}`}>
+        <BrandLogo decorative className="brand-mark" />
         <h1>{businessName}</h1>
         <p className="subtitle">SALE RECEIPT</p>
         <div className="rule" />
@@ -70,11 +75,20 @@ export function SaleReceipt({ sale, businessName }: { sale: SaleRecord; business
 
 // The PT-210 print head is 384 dots wide. A PNG avoids relying on Android's
 // browser print service and can be opened by compatible printer apps.
-function drawReceiptImage(ctx: CanvasRenderingContext2D, sale: SaleRecord, businessName: string, paint: boolean): number {
+function drawReceiptImage(ctx: CanvasRenderingContext2D, sale: SaleRecord, businessName: string, paint: boolean, logo: HTMLImageElement | null): number {
   const { delivery, credit, date } = receiptDetails(sale)
   const inset = 12
   const width = 384 - inset * 2
   let y = 29
+  if (logo) {
+    if (paint) {
+      ctx.save()
+      ctx.filter = "grayscale(1)"
+      ctx.drawImage(logo, 144, 8, 96, 96)
+      ctx.restore()
+    }
+    y = 132
+  }
 
   const write = (text: string, font = "22px Arial", align: CanvasTextAlign = "left") => {
     ctx.font = font
@@ -152,17 +166,25 @@ function drawReceiptImage(ctx: CanvasRenderingContext2D, sale: SaleRecord, busin
 }
 
 export async function downloadSaleReceiptPng(sale: SaleRecord, businessName: string): Promise<void> {
+  // Branding is optional if the asset cannot load; receipt data must still export.
+  const logo = await new Promise<HTMLImageElement | null>((resolve) => {
+    const image = new Image()
+    const timeout = window.setTimeout(() => resolve(null), 5000)
+    image.onload = () => { window.clearTimeout(timeout); resolve(image) }
+    image.onerror = () => { window.clearTimeout(timeout); resolve(null) }
+    image.src = BRAND_MARK_URL
+  })
   const canvas = document.createElement("canvas")
   canvas.width = 384
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("This browser cannot create a receipt image.")
-  canvas.height = drawReceiptImage(ctx, sale, businessName, false)
+  canvas.height = drawReceiptImage(ctx, sale, businessName, false, logo)
   // Assigning height clears the canvas and its drawing context.
   ctx.fillStyle = "#fff"
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   ctx.fillStyle = "#000"
   ctx.strokeStyle = "#000"
-  drawReceiptImage(ctx, sale, businessName, true)
+  drawReceiptImage(ctx, sale, businessName, true, logo)
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not create the receipt image.")), "image/png")
@@ -211,12 +233,27 @@ export function printSaleReceipt(receipt: HTMLElement, transactionId: string): b
 
   const clone = receipt.cloneNode(true)
   doc.body.appendChild(clone)
-  // Roll diameter is not receipt length. Size this page to its actual content.
-  const article = doc.querySelector<HTMLElement>(".sale-receipt")
-  const heightMm = Math.max(65, Math.ceil(((article?.scrollHeight || 0) * 25.4) / 96) + 3)
-  pageStyles.textContent += `\n@page { size: 57mm ${heightMm}mm; margin: 0; }`
   printWindow.opener = null
   printWindow.focus()
-  printWindow.print()
+  const images = [...doc.images]
+  const loaded = Promise.all(images.map((image) => image.complete ? Promise.resolve() : new Promise<void>((resolve) => {
+    image.addEventListener("load", () => resolve(), { once: true })
+    image.addEventListener("error", () => resolve(), { once: true })
+  })))
+  const timeout = window.setTimeout(finishPrint, 5000)
+  void loaded.then(() => { window.clearTimeout(timeout); finishPrint() })
+  let printed = false
+  function finishPrint() {
+    if (printed || printWindow!.closed) return
+    printed = true
+    for (const image of images) {
+      if (!image.complete || image.naturalWidth === 0) image.remove()
+    }
+    // Size the paper after branding has loaded, so the logo is not clipped.
+    const article = doc.querySelector<HTMLElement>(".sale-receipt")
+    const heightMm = Math.max(65, Math.ceil(((article?.scrollHeight || 0) * 25.4) / 96) + 3)
+    pageStyles.textContent += `\n@page { size: 57mm ${heightMm}mm; margin: 0; }`
+    printWindow!.print()
+  }
   return true
 }
