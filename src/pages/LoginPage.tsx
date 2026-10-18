@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react"
 import { Navigate } from "react-router-dom"
-import { Flame, Lock, User, Loader2, AlertCircle } from "lucide-react"
+import { Lock, User, Loader2, AlertCircle } from "lucide-react"
 import { Button, Card, Input, Label } from "@/components/ui"
+import { BrandLogo } from "@/components/BrandLogo"
+import { BRAND_NAME } from "@/lib/brand"
 import { useAuth } from "@/lib/auth"
 import { ThemeToggle } from "@/components/ThemeToggle"
 
@@ -41,12 +43,8 @@ export function LoginPage() {
           <ThemeToggle />
         </div>
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary shadow-md">
-            <Flame className="h-7 w-7 text-primary-foreground" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">
-            Jahren and John LPG Trading
-          </h1>
+          <BrandLogo variant="full" decorative className="h-60 w-72 max-w-full object-cover" />
+          <h1 className="sr-only">{BRAND_NAME}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Admin Portal {"\u2014"} sign in to continue
           </p>

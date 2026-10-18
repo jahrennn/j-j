@@ -27,7 +27,7 @@ The public frontend at `https://j-j-zeta.vercel.app/login` served `/assets/index
 
 The newer source also skipped stock refresh whenever Record Sale was open. A failing regression reproduced the dropdown remaining at 116 after another simulated device reduced stock to 114. That guard is now removed, with non-blocking background refresh and a separate stock label.
 
-`vercel.json` now explicitly selects Vite, `pnpm build`, and `dist`, so a source deployment rebuilds the frontend. Deploy the latest source to the production project, with `VITE_API_BASE_URL=https://jjlpg-backend.onrender.com/api`. Rebuild rather than uploading the existing checked-in `dist`, which was compiled for localhost. No backend deployment or database migration is needed for this follow-up.
+`vercel.json` now explicitly selects Vite, `pnpm build`, and `dist`, so a source deployment rebuilds the frontend. Configure `VITE_API_BASE_URL=https://jjlpg-backend.onrender.com/api` in the Vercel project's Production environment variables before deploying from GitHub. Configure Preview separately if previews are required; do not add a repository production fallback. Rebuild rather than uploading the existing checked-in `dist`, which was compiled for localhost. No backend deployment or database migration is needed for this follow-up.
 
 After deployment, run `pnpm check:live-stock` to read only public HTML/JavaScript and verify the expected fixes are present at the production URL. This check fails against the old live bundle. Then reload existing app tabs/devices. An already-open page continues running its loaded JavaScript until it is reloaded.
 

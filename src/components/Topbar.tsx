@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { Menu, User, LogOut, ChevronDown } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { ThemeToggle } from "@/components/ThemeToggle"
+import { BrandLogo } from "@/components/BrandLogo"
+import { BRAND_NAME } from "@/lib/brand"
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { username, signOut } = useAuth()
@@ -35,8 +37,9 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <h1 className="min-w-0 truncate text-base font-semibold text-foreground sm:text-lg">
-          Jahren and John LPG Trading
+        <BrandLogo decorative className="h-9 w-9 rounded-lg bg-white p-0.5" />
+        <h1 className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-lg" title={BRAND_NAME}>
+          {BRAND_NAME}
         </h1>
       </div>
 
