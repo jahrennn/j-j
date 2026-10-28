@@ -1,3 +1,4 @@
+import { usePrivacy, privateText, requireVisibleDetails } from "@/lib/privacy"
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { Plus, Fuel, Banknote, Wallet, Loader2, Ban } from "lucide-react"
 import { Badge, Button, Card, Input, Label, Modal, Select } from "@/components/ui"
@@ -14,6 +15,7 @@ const CATEGORIES: Record<ExpenseCategory, string> = {
 const textAreaClass = "w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
 export function ExpensesPage() {
+  const { privacyEnabled } = usePrivacy()
   const [range, setRange] = useState<DateRange>(currentMonthRange)
   const [category, setCategory] = useState<ExpenseCategory | "">("")
   const [page, setPage] = useState(0)
@@ -124,17 +126,17 @@ export function ExpensesPage() {
           {["Date", "Category", "Description", "Paid To", "Amount", "Status", "Actions"].map((label) => <th key={label} className={cn("px-5 py-3 font-medium", label === "Amount" && "text-right")}>{label}</th>)}
         </tr></thead>
         <tbody>{loading ? <tr><td colSpan={7} className="px-5 py-8 text-center">Loading expenses…</td></tr>
-          : loadError ? <tr><td colSpan={7} role="alert" className="px-5 py-8 text-center text-destructive">{loadError} <Button variant="outline" size="sm" onClick={refresh}>Retry</Button></td></tr>
+          : loadError ? <tr><td colSpan={7} role="alert" className="px-5 py-8 text-center text-destructive">{privateText(loadError)} <Button variant="outline" size="sm" onClick={refresh}>Retry</Button></td></tr>
           : !data?.records.content.length ? <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">No expenses recorded for these dates and category.</td></tr>
           : data.records.content.map((expense) => <tr key={expense.id} className="border-b border-border align-top last:border-0">
             <td className="whitespace-nowrap px-5 py-4">{formatDate(expense.expenseDate)}</td>
             <td className="px-5 py-4">{CATEGORIES[expense.category]}</td>
-            <td className="max-w-xs space-y-1 break-words px-5 py-4"><p className="font-medium">{expense.description}</p>
-              {expense.notes && <p className="text-xs text-muted-foreground">{expense.notes}</p>}
-              <p className="text-xs text-muted-foreground">Recorded by {expense.createdBy}</p>
-              {expense.status === "VOIDED" && <p className="text-xs text-destructive">Voided by {expense.voidedBy}: {expense.voidReason}</p>}
+            <td className="max-w-xs space-y-1 break-words px-5 py-4"><p className="font-medium">{privateText(expense.description)}</p>
+              {expense.notes && <p className="text-xs text-muted-foreground">{privateText(expense.notes)}</p>}
+              <p className="text-xs text-muted-foreground">Recorded by {privateText(expense.createdBy)}</p>
+              {expense.status === "VOIDED" && <p className="text-xs text-destructive">Voided by {privateText(expense.voidedBy)}: {privateText(expense.voidReason)}</p>}
             </td>
-            <td className="px-5 py-4">{expense.paidTo || "—"}</td>
+            <td className="px-5 py-4">{privateText(expense.paidTo || "—")}</td>
             <td className={cn("whitespace-nowrap px-5 py-4 text-right font-medium tabular-nums", expense.status === "VOIDED" && "text-muted-foreground line-through")}>{formatCurrency(expense.amount)}</td>
             <td className="px-5 py-4"><Badge className={expense.status === "VOIDED" ? "bg-muted text-muted-foreground" : "bg-success/15 text-success"}>{expense.status === "VOIDED" ? "Voided" : "Recorded"}</Badge></td>
             <td className="px-5 py-4"><Button variant="outline" size="sm" disabled={expense.status === "VOIDED"} onClick={() => { setFormError(""); setVoidTarget(expense) }}><Ban className="h-3.5 w-3.5" />Void</Button></td>
@@ -148,7 +150,7 @@ export function ExpensesPage() {
     </Card>
     <Modal isOpen={createOpen} title="Record Expense" onClose={() => { if (!busy) setCreateOpen(false) }}>
       <form onSubmit={handleCreate} className="flex flex-col gap-4">
-        {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
+        {formError && <p role="alert" className="text-sm text-destructive">{privateText(formError)}</p>}
         <fieldset disabled={busy} className="flex min-w-0 flex-col gap-4">
         <div className="space-y-1"><Label htmlFor="expense-date">Date</Label><Input id="expense-date" name="expenseDate" type="date" required defaultValue={philippineToday()} /></div>
         <div className="space-y-1"><Label htmlFor="expense-category">Category</Label>
@@ -158,7 +160,7 @@ export function ExpensesPage() {
         <div className="space-y-1"><Label htmlFor="expense-description">Description</Label><Input id="expense-description" name="description" maxLength={255} required placeholder={formCategory === "SALARY" ? "Delivery salary for October 12" : "Gasoline for LPG deliveries"} /></div>
         <div className="space-y-1"><Label htmlFor="expense-amount">Amount (₱)</Label><Input id="expense-amount" name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" required placeholder="0.00" /></div>
         <div className="space-y-1"><Label htmlFor="expense-paid-to">{formCategory === "SALARY" ? "Delivery Person / Employee" : "Paid To (optional)"}</Label><Input id="expense-paid-to" name="paidTo" maxLength={255} required={formCategory === "SALARY"} placeholder={formCategory === "SALARY" ? "Employee name" : "Person or supplier"} /></div>
-        <div className="space-y-1"><Label htmlFor="expense-notes">Notes (optional)</Label><textarea id="expense-notes" name="notes" rows={2} maxLength={500} className={textAreaClass} placeholder="Receipt number, delivery trip, or salary period" /></div>
+        <div className="space-y-1"><Label htmlFor="expense-notes">Notes (optional)</Label><textarea hidden={privacyEnabled} disabled={privacyEnabled} id="expense-notes" name="notes" rows={2} maxLength={500} className={textAreaClass} placeholder="Receipt number, delivery trip, or salary period" /></div>
         </fieldset>
         <p className="text-xs text-muted-foreground">This amount is deducted from profit in the month of the expense date.</p>
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setCreateOpen(false)}>Cancel</Button>
@@ -167,8 +169,8 @@ export function ExpensesPage() {
     </Modal>
     <Modal isOpen={voidTarget !== null} title="Void Expense" onClose={() => { if (!busy) setVoidTarget(null) }}>
       <form onSubmit={handleVoid} className="flex flex-col gap-4">
-        <p className="text-sm">Void {voidTarget?.description} ({formatCurrency(voidTarget?.amount ?? 0)})? It will remain in history and stop reducing profit. To correct it, record a replacement expense afterward.</p>
-        {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
+        <p className="text-sm">Void {privateText(voidTarget?.description)} ({formatCurrency(voidTarget?.amount ?? 0)})? It will remain in history and stop reducing profit. To correct it, record a replacement expense afterward.</p>
+        {formError && <p role="alert" className="text-sm text-destructive">{privateText(formError)}</p>}
         <div className="space-y-1"><Label htmlFor="expense-void-reason">Reason</Label><Input id="expense-void-reason" name="reason" required maxLength={500} placeholder="Explain why this expense is being voided" /></div>
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setVoidTarget(null)}>Cancel</Button>
           <Button type="submit" variant="destructive" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}Void Expense</Button></div>

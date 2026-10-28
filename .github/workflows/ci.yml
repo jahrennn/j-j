@@ -15,6 +15,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:stock
       - run: pnpm test:branding
+      - run: pnpm test:utang
       - run: pnpm build
         env:
           VITE_API_BASE_URL: https://example.invalid/api

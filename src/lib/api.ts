@@ -19,14 +19,15 @@ export interface SaleRecord {
   productName: string
   quantity: number
   totalAmount: number
-  capital: number
-  profit: number
+  capital: number | null
+  profit: number | null
   buyerName: string
   address: string
   deliveryMethod?: string
   paymentMethod?: string
   downpayment?: number
   productId?: string | null
+  recordedBy?: string
   remainingStock?: number | null
 }
 
@@ -65,6 +66,7 @@ export interface LoanPayment {
   amount: number
   paymentDate: string
   notes?: string
+  collectedBy?: string
   createdAt?: string
 }
 
@@ -73,6 +75,7 @@ export interface LoanRecord {
   category: LoanCategory
   borrowerName: string
   loanDate: string
+  dueDate?: string | null
   description?: string
   productPurchased?: string
   totalAmount: number
@@ -93,6 +96,7 @@ function normalizeLoan(record: LoanApiRecord): LoanRecord {
 export interface CreateLoanPayload {
   borrowerName: string
   loanDate?: string
+  dueDate?: string | null
   description: string
   totalAmount: number
   downpayment?: number
@@ -110,7 +114,7 @@ export interface SalesSummary {
   totalRevenue: number
   totalOrders: number
   averageTransactionValue: number
-  totalProfit: number
+  totalProfit: number | null
 }
 
 export interface SalesResponse {
@@ -195,8 +199,8 @@ export async function getExpenseProfit(range?: DateRange): Promise<ExpenseProfit
   if (USE_MOCK) {
     const dates = range ?? currentMonthRange()
     const [sales, expenses] = await Promise.all([getSales(dates), getExpenses(dates)])
-    return { ...dates, grossProfit: sales.summary.totalProfit, operatingExpenses: expenses.summary.totalAmount,
-      netProfit: Math.round((sales.summary.totalProfit - expenses.summary.totalAmount) * 100) / 100 }
+    return { ...dates, grossProfit: sales.summary.totalProfit ?? 0, operatingExpenses: expenses.summary.totalAmount,
+      netProfit: Math.round(((sales.summary.totalProfit ?? 0) - expenses.summary.totalAmount) * 100) / 100 }
   }
   const params = new URLSearchParams()
   if (range?.startDate) params.set("startDate", range.startDate)
@@ -241,13 +245,28 @@ export async function voidExpense(id: number, reason: string): Promise<ExpenseRe
   return request<ExpenseRecord>(`/expenses/${id}/void`, { method: "POST", body: JSON.stringify({ reason }) })
 }
 
+export interface Replenishment {
+  minimumStock: number
+  leadTimeDays: number
+  coverageDays: number
+  unitsSold: number
+  observationDays: number
+  averageDailySales: number
+  daysRemaining: number | null
+  reorderPoint: number
+  targetStock: number
+  suggestedQuantity: number
+  needsReorder: boolean
+}
+
 export interface Product {
   id: string
   name: string
   sku: string
   stock: number
   unitPrice: number
-  capital: number
+  capital: number | null
+  replenishment?: Replenishment
 }
 
 export type StockMovementType = "OPENING" | "SALE" | "SALE_REVERSAL" | "RESTOCK" | "CORRECTION" | "DAMAGE" | "PRODUCT_DELETED"
@@ -281,7 +300,7 @@ export interface InventoryResponse {
 export interface DailyRevenue {
   date: string
   revenue: number
-  profit: number
+  profit: number | null
   orders: number
 }
 
@@ -318,9 +337,12 @@ export interface LoginPayload {
   password: string
 }
 
+export type StaffRole = "OWNER" | "CASHIER" | "DRIVER"
+
 export interface LoginResponse {
   token: string
   username: string
+  role: StaffRole
 }
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "")
@@ -379,8 +401,8 @@ function seededSales(): SaleRecord[] {
       productName: product.name,
       quantity,
       totalAmount: product.unitPrice * quantity,
-      capital: product.capital * quantity,
-      profit: (product.unitPrice - product.capital) * quantity,
+      capital: (product.capital ?? 0) * quantity,
+      profit: (product.unitPrice - (product.capital ?? 0)) * quantity,
       buyerName: `Customer ${i}`,
       address: i % 3 === 0 ? "Pick up" : `123 Demo St, Address ${i}`,
       deliveryMethod: i % 3 === 0 ? "Pick up" : "Deliver",
@@ -467,7 +489,7 @@ function filterByRange(records: SaleRecord[], range?: DateRange): SaleRecord[] {
 
 function summarize(records: SaleRecord[]): SalesSummary {
   const totalRevenue = records.reduce((sum, r) => sum + r.totalAmount, 0)
-  const totalProfit = records.reduce((sum, r) => sum + r.profit, 0)
+  const totalProfit = records.reduce((sum, r) => sum + (r.profit ?? 0), 0)
   const totalOrders = records.length
   return {
     totalRevenue,
@@ -572,7 +594,7 @@ export async function getSales(range?: DateRange): Promise<SalesResponse> {
 export async function getInventory(): Promise<InventoryResponse> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 300))
-    return { products: MOCK_PRODUCTS }
+    return { products: MOCK_PRODUCTS.map(withMockReplenishment) }
   }
   return request<InventoryResponse>("/inventory")
 }
@@ -608,7 +630,7 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 500))
     if (payload.username === "admin" && payload.password === "admin123") {
-      return { token: "", username: payload.username }
+      return { token: "", username: payload.username, role: "OWNER" }
     }
     throw new Error("Invalid username or password.")
   }
@@ -642,6 +664,7 @@ export interface CreateSalePayload {
   deliveryMethod: string
   paymentMethod?: string
   downpayment?: number
+  dueDate?: string | null
   tankExchange?: { customerTankProductId: string; suppliedTankProductId: string }
 }
 
@@ -673,6 +696,7 @@ export async function createSale(payload: CreateSalePayload): Promise<SaleRecord
       throw new ApiError("Invalid downpayment or credit sale amount", 400)
     }
     
+    if (isUtang) validateMockDueDate(payload.dueDate, philippineToday())
     const stockBefore = product.stock
     product.stock -= payload.quantity
     
@@ -685,8 +709,8 @@ export async function createSale(payload: CreateSalePayload): Promise<SaleRecord
       productName: product.name,
       quantity: payload.quantity,
       totalAmount: totalAmount,
-      capital: product.capital * payload.quantity,
-      profit: (product.unitPrice - product.capital) * payload.quantity,
+      capital: (product.capital ?? 0) * payload.quantity,
+      profit: (product.unitPrice - (product.capital ?? 0)) * payload.quantity,
       buyerName: payload.buyerName,
       address: address,
       deliveryMethod: payload.deliveryMethod,
@@ -714,6 +738,7 @@ export async function createSale(payload: CreateSalePayload): Promise<SaleRecord
         category: "LPG",
         borrowerName: payload.buyerName,
         loanDate: newSale.date,
+        dueDate: payload.dueDate || null,
         description: `LPG Sale - ${newSale.transactionId}`,
         productPurchased: `${product.name} (${payload.quantity}x)`,
         totalAmount: totalAmount,
@@ -736,9 +761,11 @@ export async function createSale(payload: CreateSalePayload): Promise<SaleRecord
     if (payload.requestId) MOCK_SALE_REQUESTS.set(payload.requestId, { payload: JSON.stringify(payload), sale: newSale })
     return newSale
   }
-  if (payload.requestId) {
-    const support = await request<{ idempotentRecording: boolean }>("/sales/recording-support")
-    if (!support.idempotentRecording) throw new ApiError("The backend is still updating. Wait for deployment before recording sales.", 503)
+  const isCredit = payload.paymentMethod?.toUpperCase() === "UTANG"
+  if (payload.requestId || (isCredit && payload.dueDate)) {
+    const support = await request<{ idempotentRecording: boolean; promisedPaymentDates?: boolean }>("/sales/recording-support")
+    if (payload.requestId && !support.idempotentRecording) throw new ApiError("The backend is still updating. Wait for deployment before recording sales.", 503)
+    if (isCredit && payload.dueDate && !support.promisedPaymentDates) throw new ApiError("Update the backend before recording Utang sales with promised payment dates.", 503)
   }
   if (payload.tankExchange) {
     // An older backend silently ignores tankExchange. Verify support before saving the sale.
@@ -918,7 +945,7 @@ export async function getDashboardAnalytics(): Promise<DashboardAnalytics> {
       const entry = dailyMap.get(r.date)
       if (entry) {
         entry.revenue += r.totalAmount
-        entry.profit += r.profit
+        entry.profit = (entry.profit ?? 0) + (r.profit ?? 0)
         entry.orders += 1
       }
     }
@@ -961,7 +988,7 @@ export async function getDashboardAnalytics(): Promise<DashboardAnalytics> {
     const entry = dailyMap.get(r.date)
     if (entry) {
       entry.revenue += r.totalAmount
-      entry.profit += r.profit
+      entry.profit = (entry.profit ?? 0) + (r.profit ?? 0)
       entry.orders += 1
     }
   }
@@ -1007,14 +1034,16 @@ export async function createOtherLoan(payload: CreateLoanPayload): Promise<LoanR
     if (downpayment > payload.totalAmount) throw new Error("Downpayment cannot exceed total amount")
 
     const remaining = Math.max(0, payload.totalAmount - downpayment)
-    const today = new Date().toISOString().slice(0, 10)
+    const today = philippineToday()
     const loanDate = payload.loanDate || today
+    validateMockDueDate(payload.dueDate, loanDate)
 
     const newLoan: LoanRecord = {
       id: Date.now(),
       category: "OTHER",
       borrowerName: payload.borrowerName.trim(),
       loanDate: loanDate,
+      dueDate: payload.dueDate || null,
       description: payload.description.trim(),
       totalAmount: payload.totalAmount,
       amountPaid: downpayment,
@@ -1034,6 +1063,10 @@ export async function createOtherLoan(payload: CreateLoanPayload): Promise<LoanR
     return newLoan
   }
 
+  if (payload.dueDate) {
+    const support = await request<{ promisedPaymentDates?: boolean }>("/loans/recording-support")
+    if (!support.promisedPaymentDates) throw new ApiError("Update the backend before recording loans with promised payment dates.", 503)
+  }
   const response = await request<LoanApiRecord>("/loans", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -1080,4 +1113,68 @@ export async function recordLoanPayment(loanId: number, payload: RecordPaymentPa
     body: JSON.stringify(payload),
   })
   return normalizeLoan(response)
+}
+
+
+function validateMockDueDate(dueDate: string | null | undefined, loanDate: string) {
+  if (dueDate && dueDate < loanDate) throw new ApiError("Promised payment date cannot be before the loan date", 400)
+}
+export async function updateLoanDueDate(id: number, dueDate: string | null): Promise<LoanRecord> {
+  if (USE_MOCK) {
+    const loan = MOCK_LOANS.find(l => l.id === id)
+    if (!loan) throw new ApiError("Loan not found", 400)
+    validateMockDueDate(dueDate, loan.loanDate)
+    loan.dueDate = dueDate
+    return { ...loan }
+  }
+  return normalizeLoan(await request<LoanApiRecord>(`/loans/${id}/due-date`, { method: "PUT", body: JSON.stringify({ dueDate }) }))
+}
+
+
+export interface StaffAccount { id: number; username: string; role: StaffRole; enabled: boolean }
+export interface AuditEvent { id: number; actor: string; action: string; entityType: string; entityId: string; details: string; createdAt: string }
+export interface AuditPage { content: AuditEvent[]; number: number; totalPages: number; totalElements: number }
+export async function getCurrentUser(): Promise<StaffAccount> {
+  if (USE_MOCK) return { id: 1, username: MOCK_SETTINGS.username, role: "OWNER", enabled: true }
+  return request<StaffAccount>("/auth/me")
+}
+export async function getStaff(): Promise<StaffAccount[]> {
+  if (USE_MOCK) return [await getCurrentUser()]
+  return request<StaffAccount[]>("/staff")
+}
+export async function createStaff(payload: { username: string; password: string; role: StaffRole }): Promise<StaffAccount> {
+  if (USE_MOCK) throw new Error("Connect the backend to create staff accounts.")
+  return request<StaffAccount>("/staff", { method: "POST", body: JSON.stringify(payload) })
+}
+export async function updateStaff(id: number, payload: { role: StaffRole; enabled: boolean; password?: string }): Promise<StaffAccount> {
+  if (USE_MOCK) throw new Error("Connect the backend to manage staff accounts.")
+  return request<StaffAccount>(`/staff/${id}`, { method: "PUT", body: JSON.stringify(payload) })
+}
+export async function getAuditEvents(page = 0): Promise<AuditPage> {
+  if (USE_MOCK) return { content: [], number: 0, totalPages: 0, totalElements: 0 }
+  return request<AuditPage>(`/audit?page=${page}&size=25`)
+}
+export async function updateReplenishment(id: string, payload: Pick<Replenishment, "minimumStock" | "leadTimeDays" | "coverageDays">): Promise<Product> {
+  if (USE_MOCK) {
+    const product = MOCK_PRODUCTS.find(p => p.id === id)
+    if (!product) throw new Error("Product not found")
+    product.replenishment = { ...withMockReplenishment(product).replenishment!, ...payload }
+    return withMockReplenishment(product)
+  }
+  return request<Product>(`/inventory/products/${id}/replenishment`, { method: "PUT", body: JSON.stringify(payload) })
+}
+function withMockReplenishment(product: Product): Product {
+  const today = philippineToday()
+  const start = new Date(`${today}T00:00:00Z`); start.setUTCDate(start.getUTCDate() - 29)
+  const firstDay = start.toISOString().slice(0, 10)
+  const units = MOCK_SALES.filter(s => s.productId === product.id && s.date >= firstDay && s.date <= today).reduce((sum, s) => sum + s.quantity, 0)
+  const minimumStock = product.replenishment?.minimumStock ?? 20
+  const leadTimeDays = product.replenishment?.leadTimeDays ?? 3
+  const coverageDays = product.replenishment?.coverageDays ?? 14
+  const reorderPoint = minimumStock + Math.ceil(units * leadTimeDays / 30)
+  const targetStock = minimumStock + Math.ceil(units * (leadTimeDays + coverageDays) / 30)
+  const needsReorder = product.stock <= reorderPoint
+  return { ...product, replenishment: { minimumStock, leadTimeDays, coverageDays, unitsSold: units, observationDays: 30,
+    averageDailySales: Math.round(units / 30 * 100) / 100, daysRemaining: units ? Math.round(product.stock * 30 / units * 10) / 10 : null,
+    reorderPoint, targetStock, suggestedQuantity: needsReorder ? Math.max(0, targetStock - product.stock) : 0, needsReorder } }
 }

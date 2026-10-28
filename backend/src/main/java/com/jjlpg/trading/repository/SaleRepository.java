@@ -14,6 +14,10 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
     @Query("SELECT s FROM Sale s WHERE s.id = :id")
     java.util.Optional<Sale> findByIdForUpdate(@Param("id") Long id);
 
+    interface ProductUnits { Long getProductId(); Long getUnits(); }
+    @Query("SELECT s.productId AS productId, sum(s.quantity) AS units FROM Sale s WHERE s.productId IS NOT NULL AND s.saleDate BETWEEN :start AND :end GROUP BY s.productId")
+    List<ProductUnits> unitsByProduct(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
     @Query("SELECT coalesce(sum(s.totalAmount - s.capital), 0) FROM Sale s WHERE s.saleDate BETWEEN :startDate AND :endDate")
     BigDecimal sumProfit(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 

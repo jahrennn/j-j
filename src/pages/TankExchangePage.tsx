@@ -1,8 +1,10 @@
+import { usePrivacy, privateText, requireVisibleDetails } from "@/lib/privacy"
 import { useEffect, useState } from "react"
 import { Button, Card } from "@/components/ui"
 import { getTankExchanges, type TankExchangePage } from "@/lib/api"
 
 export function TankExchangePage() {
+  const { privacyEnabled } = usePrivacy()
   const [page, setPage] = useState(0)
   const [data, setData] = useState<TankExchangePage | null>(null)
   const [loading, setLoading] = useState(true)
@@ -49,7 +51,7 @@ export function TankExchangePage() {
                 : data.content.map((exchange) => <tr key={exchange.id} className="border-b border-border last:border-0">
                     <td className="whitespace-nowrap px-5 py-3">{exchange.date}</td>
                     <td className="px-5 py-3 font-medium">{exchange.transactionId}</td>
-                    <td className="px-5 py-3">{exchange.buyerName}</td>
+                    <td className="px-5 py-3">{privateText(exchange.buyerName)}</td>
                     <td className="px-5 py-3"><div>{exchange.customerTankName}</div><div className="text-xs text-muted-foreground">{exchange.customerTankSku}</div></td>
                     <td className="px-5 py-3"><div>{exchange.suppliedTankName}</div><div className="text-xs text-muted-foreground">{exchange.suppliedTankSku}</div></td>
                     <td className="px-5 py-3 text-right tabular-nums">{exchange.quantity}</td>

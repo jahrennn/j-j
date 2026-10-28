@@ -55,7 +55,20 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
-                        .anyRequest().authenticated())
+                        .requestMatchers("/auth/me", "/auth/logout").authenticated()
+                        .requestMatchers("/staff/**", "/audit/**", "/expenses/**").hasRole("OWNER")
+                        .requestMatchers(HttpMethod.GET, "/settings").authenticated()
+                        .requestMatchers("/settings/**").hasRole("OWNER")
+                        .requestMatchers(HttpMethod.GET, "/inventory/movements").hasRole("OWNER")
+                        .requestMatchers(HttpMethod.GET, "/inventory").authenticated()
+                        .requestMatchers("/inventory/**").hasRole("OWNER")
+                        .requestMatchers(HttpMethod.DELETE, "/sales/**").hasRole("OWNER")
+                        .requestMatchers("/sales/**").hasAnyRole("OWNER", "CASHIER")
+                        .requestMatchers(HttpMethod.GET, "/loans/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/loans/*/payments").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/loans/*/due-date").hasAnyRole("OWNER", "CASHIER")
+                        .requestMatchers(HttpMethod.POST, "/loans").hasAnyRole("OWNER", "CASHIER")
+                        .anyRequest().denyAll())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -14,7 +14,7 @@ import static org.mockito.Mockito.*;
 class LoanServiceTest {
     LoanRepository loans = mock(LoanRepository.class);
     LoanPaymentRepository payments = mock(LoanPaymentRepository.class);
-    LoanService service = new LoanService(loans, payments);
+    LoanService service = new LoanService(loans, payments, mock(AuditService.class));
     final LocalDate date = LocalDate.of(2026, 10, 1);
     BigDecimal money(String value) { return new BigDecimal(value); }
     @BeforeEach void setup() {
@@ -74,5 +74,19 @@ class LoanServiceTest {
         assertEquals(LoanCategory.LPG, loan.getCategory());
         assertEquals(money("150.00"), loan.getRemainingBalance());
         assertEquals(1, loan.getPayments().size());
+    }
+    @Test void promisedDateCanBeSetChangedAndClearedWithoutChangingBalance() {
+        Loan loan = loan("40.00");
+        var result = service.updateDueDate(1L, new UpdateLoanDueDateRequest(date.plusDays(10)));
+        assertEquals(date.plusDays(10).toString(), result.dueDate());
+        assertEquals(money("60.00"), result.remainingBalance());
+        assertNull(service.updateDueDate(1L, new UpdateLoanDueDateRequest(null)).dueDate());
+        assertThrows(IllegalArgumentException.class, () -> service.updateDueDate(1L, new UpdateLoanDueDateRequest(date.minusDays(1))));
+        verifyNoInteractions(payments);
+    }
+    @Test void invalidPromisedDateCreatesNoDebt() {
+        assertThrows(IllegalArgumentException.class, () -> service.createOtherLoan(new CreateLoanRequest("Borrower", date,
+                "Loan", money("100.00"), null, null, date.minusDays(1))));
+        verify(loans, never()).save(any());
     }
 }

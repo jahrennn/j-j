@@ -34,6 +34,19 @@ public class Product {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal capital = BigDecimal.ZERO;
 
+    @Column(name = "minimum_stock", nullable = false)
+    private int minimumStock = 20;
+    @Column(name = "lead_time_days", nullable = false)
+    private int leadTimeDays = 3;
+    @Column(name = "coverage_days", nullable = false)
+    private int coverageDays = 14;
+    public int getMinimumStock() { return minimumStock; }
+    public void setMinimumStock(int value) { minimumStock = value; }
+    public int getLeadTimeDays() { return leadTimeDays; }
+    public void setLeadTimeDays(int value) { leadTimeDays = value; }
+    public int getCoverageDays() { return coverageDays; }
+    public void setCoverageDays(int value) { coverageDays = value; }
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

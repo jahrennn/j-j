@@ -1,3 +1,4 @@
+import { isPrivacyEnabled, PRIVACY_MASK } from "./privacyStore"
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -21,6 +22,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(value: number): string {
+  if (isPrivacyEnabled()) return PRIVACY_MASK
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",

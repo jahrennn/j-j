@@ -16,9 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class StockMovementService {
     private final StockMovementRepository repository;
+    private final AuditService audit;
 
-    public StockMovementService(StockMovementRepository repository) {
+    public StockMovementService(StockMovementRepository repository, AuditService audit) {
         this.repository = repository;
+        this.audit = audit;
     }
 
     public void record(Product product, StockMovementType type, int before, int after,
@@ -37,6 +39,7 @@ public class StockMovementService {
         movement.setActor(authentication != null && authentication.isAuthenticated()
                 ? authentication.getName() : "system");
         repository.save(movement);
+        audit.record("STOCK_" + type.name(), "PRODUCT", product.getId(), product.getName() + " (" + product.getSku() + ") · " + before + " → " + after + " · " + reason);
     }
 
     @Transactional(readOnly = true)

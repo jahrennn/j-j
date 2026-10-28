@@ -28,5 +28,11 @@ public record CreateLoanRequest(
         BigDecimal downpayment,
 
         @jakarta.validation.constraints.Size(max = 500)
-        String notes
-) {}
+        String notes,
+        LocalDate dueDate
+) {
+    public CreateLoanRequest(String borrowerName, LocalDate loanDate, String description,
+                             BigDecimal totalAmount, BigDecimal downpayment, String notes) {
+        this(borrowerName, loanDate, description, totalAmount, downpayment, notes, null);
+    }
+}

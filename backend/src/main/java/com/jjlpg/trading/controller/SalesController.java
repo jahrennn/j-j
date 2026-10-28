@@ -45,7 +45,7 @@ public class SalesController {
 
     @GetMapping("/recording-support")
     public java.util.Map<String, Boolean> recordingSupport() {
-        return java.util.Map.of("idempotentRecording", true);
+        return java.util.Map.of("idempotentRecording", true, "promisedPaymentDates", true);
     }
 
     @DeleteMapping("/{id}")

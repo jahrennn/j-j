@@ -28,6 +28,12 @@ public class Loan {
     @Column(name = "loan_date", nullable = false)
     private LocalDate loanDate;
 
+    @Column(name = "due_date")
+    private LocalDate dueDate;
+
+    public LocalDate getDueDate() { return dueDate; }
+    public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
+
     @Column(length = 500)
     private String description;
 

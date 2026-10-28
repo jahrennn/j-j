@@ -1,3 +1,4 @@
+import { usePrivacy, privateText, requireVisibleDetails } from "@/lib/privacy"
 import { useEffect, useState, type FormEvent } from "react"
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
 import { Button, Card, Input, Label } from "@/components/ui"
@@ -5,7 +6,8 @@ import { getSettings, updateSettings } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 
 export function SettingsPage() {
-  const { username, updateUsername } = useAuth()
+  const { privacyEnabled } = usePrivacy()
+  const { username, updateUsername, signOut } = useAuth()
   const [businessName, setBusinessName] = useState("")
   const [contactNumber, setContactNumber] = useState("")
   const [address, setAddress] = useState("")
@@ -47,6 +49,7 @@ export function SettingsPage() {
     setSuccess(null)
     setSaving(true)
     try {
+      const credentialsChanged = adminUsername !== username || !!newPassword
       const updated = await updateSettings({
         businessName,
         contactNumber,
@@ -54,6 +57,7 @@ export function SettingsPage() {
         username: adminUsername !== username ? adminUsername : undefined,
         newPassword: newPassword || undefined,
       })
+      if (credentialsChanged) { await signOut(); return }
       setAdminUsername(updated.username)
       setNewPassword("")
       if (updated.username !== username) {
@@ -143,9 +147,9 @@ export function SettingsPage() {
       </Card>
 
       <Card className="p-6">
-        <h3 className="font-semibold text-foreground">Admin Account</h3>
+        <h3 className="font-semibold text-foreground">Your Owner Account</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Update your administrator credentials.
+          Update your own sign-in credentials. You will need to sign in again after changing them.
         </p>
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">

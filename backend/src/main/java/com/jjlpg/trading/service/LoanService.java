@@ -17,10 +17,12 @@ public class LoanService {
 
     private final LoanRepository loanRepository;
     private final LoanPaymentRepository loanPaymentRepository;
+    private final AuditService audit;
 
-    public LoanService(LoanRepository loanRepository, LoanPaymentRepository loanPaymentRepository) {
+    public LoanService(LoanRepository loanRepository, LoanPaymentRepository loanPaymentRepository, AuditService audit) {
         this.loanRepository = loanRepository;
         this.loanPaymentRepository = loanPaymentRepository;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -38,6 +40,8 @@ public class LoanService {
         loan.setCategory(LoanCategory.OTHER);
         loan.setBorrowerName(request.borrowerName().trim());
         loan.setLoanDate(request.loanDate() != null ? request.loanDate() : LocalDate.now(java.time.ZoneId.of("Asia/Manila")));
+        validateDueDate(request.dueDate(), loan.getLoanDate());
+        loan.setDueDate(request.dueDate());
         loan.setDescription(request.description().trim());
         loan.setTotalAmount(request.totalAmount());
         loan.setNotes(request.notes());
@@ -70,7 +74,9 @@ public class LoanService {
             payment.setAmount(downpayment);
             payment.setPaymentDate(loan.getLoanDate());
             payment.setNotes("Initial Downpayment");
+            payment.setCollectedBy(com.jjlpg.trading.security.Actor.username());
             loanPaymentRepository.save(payment);
+            audit.record("PAYMENT_COLLECTED", "LOAN", savedLoan.getId(), savedLoan.getBorrowerName() + " · initial payment PHP " + payment.getAmount());
             savedLoan.getPayments().add(payment);
         }
 
@@ -80,10 +86,18 @@ public class LoanService {
     @Transactional
     public Loan createLpgLoan(Sale sale, String buyerName, LocalDate date, String productPurchased,
                               BigDecimal totalAmount, BigDecimal downpayment) {
+        return createLpgLoan(sale, buyerName, date, productPurchased, totalAmount, downpayment, null);
+    }
+
+    @Transactional
+    public Loan createLpgLoan(Sale sale, String buyerName, LocalDate date, String productPurchased,
+                              BigDecimal totalAmount, BigDecimal downpayment, LocalDate dueDate) {
         Loan loan = new Loan();
         loan.setCategory(LoanCategory.LPG);
         loan.setBorrowerName(buyerName != null ? buyerName.trim() : "Unknown");
         loan.setLoanDate(date != null ? date : LocalDate.now(java.time.ZoneId.of("Asia/Manila")));
+        validateDueDate(dueDate, loan.getLoanDate());
+        loan.setDueDate(dueDate);
         loan.setProductPurchased(productPurchased);
         loan.setDescription("LPG Sale - " + sale.getTransactionId());
         loan.setTotalAmount(totalAmount);
@@ -117,7 +131,9 @@ public class LoanService {
             payment.setAmount(dp);
             payment.setPaymentDate(date != null ? date : LocalDate.now(java.time.ZoneId.of("Asia/Manila")));
             payment.setNotes("Initial Downpayment");
+            payment.setCollectedBy(com.jjlpg.trading.security.Actor.username());
             loanPaymentRepository.save(payment);
+            audit.record("PAYMENT_COLLECTED", "LOAN", savedLoan.getId(), savedLoan.getBorrowerName() + " · initial payment PHP " + payment.getAmount());
             savedLoan.getPayments().add(payment);
         }
 
@@ -162,7 +178,9 @@ public class LoanService {
         payment.setAmount(request.amount());
         payment.setPaymentDate(request.paymentDate() != null ? request.paymentDate() : LocalDate.now(java.time.ZoneId.of("Asia/Manila")));
         payment.setNotes(request.notes());
+        payment.setCollectedBy(com.jjlpg.trading.security.Actor.username());
         loanPaymentRepository.save(payment);
+        audit.record("PAYMENT_COLLECTED", "LOAN", loanId, loan.getBorrowerName() + " · PHP " + payment.getAmount() + " · payment date " + payment.getPaymentDate());
         loan.getPayments().add(payment);
 
         BigDecimal newAmountPaid = loan.getAmountPaid().add(request.amount());
@@ -184,6 +202,21 @@ public class LoanService {
         return toDto(updated);
     }
 
+    @Transactional
+    public LoanResponseDto updateDueDate(Long id, UpdateLoanDueDateRequest request) {
+        Loan loan = loanRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new IllegalArgumentException("Loan not found"));
+        validateDueDate(request.dueDate(), loan.getLoanDate());
+        loan.setDueDate(request.dueDate());
+        return toDto(loanRepository.save(loan));
+    }
+
+    private void validateDueDate(LocalDate dueDate, LocalDate loanDate) {
+        if (dueDate != null && dueDate.isBefore(loanDate)) {
+            throw new IllegalArgumentException("Promised payment date cannot be before the loan date");
+        }
+    }
+
     private LoanResponseDto toDto(Loan loan) {
         List<LoanPaymentDto> paymentDtos = loan.getPayments() != null
                 ? loan.getPayments().stream()
@@ -194,7 +227,7 @@ public class LoanService {
                             p.getAmount(),
                             p.getPaymentDate().toString(),
                             p.getNotes(),
-                            p.getCreatedAt() != null ? p.getCreatedAt().toString() : null
+                            p.getCreatedAt() != null ? p.getCreatedAt().toString() : null, p.getCollectedBy()
                     ))
                     .toList()
                 : List.of();
@@ -212,7 +245,8 @@ public class LoanService {
                 loan.getStatus().name(),
                 loan.getNotes(),
                 loan.getSale() != null ? loan.getSale().getId() : null,
-                paymentDtos
+                paymentDtos,
+                loan.getDueDate() != null ? loan.getDueDate().toString() : null
         );
     }
 }

@@ -1,3 +1,4 @@
+import { requireVisibleDetails, isPrivacyEnabled } from "@/lib/privacyStore"
 import type { SaleRecord } from "@/lib/api"
 import { BrandLogo } from "@/components/BrandLogo"
 import { BRAND_MARK_URL } from "@/lib/brand"
@@ -166,6 +167,7 @@ function drawReceiptImage(ctx: CanvasRenderingContext2D, sale: SaleRecord, busin
 }
 
 export async function downloadSaleReceiptPng(sale: SaleRecord, businessName: string): Promise<void> {
+  requireVisibleDetails()
   // Branding is optional if the asset cannot load; receipt data must still export.
   const logo = await new Promise<HTMLImageElement | null>((resolve) => {
     const image = new Image()
@@ -174,6 +176,7 @@ export async function downloadSaleReceiptPng(sale: SaleRecord, businessName: str
     image.onerror = () => { window.clearTimeout(timeout); resolve(null) }
     image.src = BRAND_MARK_URL
   })
+  requireVisibleDetails()
   const canvas = document.createElement("canvas")
   canvas.width = 384
   const ctx = canvas.getContext("2d")
@@ -189,6 +192,7 @@ export async function downloadSaleReceiptPng(sale: SaleRecord, businessName: str
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not create the receipt image.")), "image/png")
   })
+  requireVisibleDetails()
   const url = URL.createObjectURL(blob)
   const link = document.createElement("a")
   link.href = url
@@ -200,6 +204,7 @@ export async function downloadSaleReceiptPng(sale: SaleRecord, businessName: str
 }
 
 export function printSaleReceipt(receipt: HTMLElement, transactionId: string): boolean {
+  if (isPrivacyEnabled()) return false
   const printWindow = window.open("", "_blank", "width=380,height=650")
   if (!printWindow) return false
 
@@ -244,6 +249,7 @@ export function printSaleReceipt(receipt: HTMLElement, transactionId: string): b
   void loaded.then(() => { window.clearTimeout(timeout); finishPrint() })
   let printed = false
   function finishPrint() {
+    if (isPrivacyEnabled()) { printWindow!.close(); return }
     if (printed || printWindow!.closed) return
     printed = true
     for (const image of images) {

@@ -1,3 +1,4 @@
+import { usePrivacy, privateText, requireVisibleDetails } from "@/lib/privacy"
 import { useEffect, useState } from "react"
 import { Button, Card } from "@/components/ui"
 import { getExpenseProfit, type DateRange, type ExpenseProfit } from "@/lib/api"
@@ -6,6 +7,7 @@ import { cn, formatCurrency, formatDate } from "@/lib/utils"
 export function ExpenseProfitPanel({ range, revision = 0, title = "This month's profit" }: {
   range?: DateRange; revision?: number; title?: string
 }) {
+  const { privacyEnabled } = usePrivacy()
   const [profit, setProfit] = useState<ExpenseProfit | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")

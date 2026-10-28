@@ -51,6 +51,11 @@ public class Sale {
     @Column(name = "downpayment", nullable = false, precision = 12, scale = 2)
     private BigDecimal downpayment = BigDecimal.ZERO;
 
+    @Column(name = "recorded_by", nullable = false, length = 100)
+    private String recordedBy = "system";
+    public String getRecordedBy() { return recordedBy; }
+    public void setRecordedBy(String value) { recordedBy = value; }
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -55,18 +55,18 @@ class ExpenseApiTest {
     }
 
     JsonNode record(String date, String category, String amount, String paidTo) throws Exception {
-        return json(mvc.perform(post("/expenses").with(user("admin")).contentType(MediaType.APPLICATION_JSON)
+        return json(mvc.perform(post("/expenses").with(user("admin").roles("OWNER")).contentType(MediaType.APPLICATION_JSON)
                 .content(payload(UUID.randomUUID(), date, category, amount, paidTo)))
                 .andExpect(status().isOk()).andReturn());
     }
 
     JsonNode list(String query) throws Exception {
-        return json(mvc.perform(get("/expenses" + query).with(user("admin")))
+        return json(mvc.perform(get("/expenses" + query).with(user("admin").roles("OWNER")))
                 .andExpect(status().isOk()).andReturn());
     }
 
     JsonNode profit(String query) throws Exception {
-        return json(mvc.perform(get("/expenses/profit" + query).with(user("admin")))
+        return json(mvc.perform(get("/expenses/profit" + query).with(user("admin").roles("OWNER")))
                 .andExpect(status().isOk()).andReturn());
     }
 
@@ -94,9 +94,9 @@ class ExpenseApiTest {
         assertEquals(4, list("?endDate=2091-01-31").at("/records/totalElements").asInt());
 
         String path = "/expenses/" + fuel.get("id").asLong() + "/void";
-        JsonNode firstVoid = json(mvc.perform(post(path).with(user("admin")).contentType(MediaType.APPLICATION_JSON)
+        JsonNode firstVoid = json(mvc.perform(post(path).with(user("admin").roles("OWNER")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reason\":\" Duplicate receipt \"}")).andExpect(status().isOk()).andReturn());
-        JsonNode retry = json(mvc.perform(post(path).with(user("another-user")).contentType(MediaType.APPLICATION_JSON)
+        JsonNode retry = json(mvc.perform(post(path).with(user("another-user").roles("OWNER")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reason\":\"Different reason\"}")).andExpect(status().isOk()).andReturn());
         assertEquals("VOIDED", retry.get("status").asText());
         assertEquals("Duplicate receipt", retry.get("voidReason").asText());
@@ -125,7 +125,7 @@ class ExpenseApiTest {
         amount("300", result.get("operatingExpenses"));
         amount("100", result.get("netProfit"));
         amount("-50", profit("?startDate=2092-01-01&endDate=2092-01-31").get("netProfit"));
-        mvc.perform(post("/expenses/" + fuel.get("id").asLong() + "/void").with(user("admin"))
+        mvc.perform(post("/expenses/" + fuel.get("id").asLong() + "/void").with(user("admin").roles("OWNER"))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Incorrect amount\"}"))
                 .andExpect(status().isOk());
         amount("200", profit(feb).get("netProfit"));
@@ -147,19 +147,19 @@ class ExpenseApiTest {
     @Test void retryDoesNotDuplicateExpenseAndChangedRetryConflicts() throws Exception {
         UUID id = UUID.randomUUID();
         String body = payload(id, "2093-03-01", "FUEL", "10.50", "");
-        JsonNode first = json(mvc.perform(post("/expenses").with(user("admin"))
+        JsonNode first = json(mvc.perform(post("/expenses").with(user("admin").roles("OWNER"))
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk()).andReturn());
-        JsonNode retry = json(mvc.perform(post("/expenses").with(user("admin"))
+        JsonNode retry = json(mvc.perform(post("/expenses").with(user("admin").roles("OWNER"))
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk()).andReturn());
         assertEquals(first.get("id"), retry.get("id"));
         assertEquals(1, list("?startDate=2093-03-01&endDate=2093-03-01").at("/summary/recordedCount").asInt());
-        mvc.perform(post("/expenses").with(user("admin")).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/expenses").with(user("admin").roles("OWNER")).contentType(MediaType.APPLICATION_JSON)
                 .content(payload(id, "2093-03-01", "FUEL", "11.50", ""))).andExpect(status().isConflict());
     }
 
     @Test void malformedAndInvalidRequestsAreRejected() throws Exception {
         for (String value : new String[]{"0", "-1", "1.001", "10000000000"}) {
-            mvc.perform(post("/expenses").with(user("admin")).contentType(MediaType.APPLICATION_JSON)
+            mvc.perform(post("/expenses").with(user("admin").roles("OWNER")).contentType(MediaType.APPLICATION_JSON)
                     .content(payload(UUID.randomUUID(), "2094-01-01", "FUEL", value, "")))
                     .andExpect(status().isBadRequest());
         }
@@ -167,18 +167,18 @@ class ExpenseApiTest {
                 payload(UUID.randomUUID(), "2094-01-01", "SALARY", "10", " "),
                 payload(UUID.randomUUID(), "2094-01-01", "BAD", "10", ""),
                 payload(UUID.randomUUID(), "bad-date", "FUEL", "10", "")}) {
-            mvc.perform(post("/expenses").with(user("admin")).contentType(MediaType.APPLICATION_JSON).content(body))
+            mvc.perform(post("/expenses").with(user("admin").roles("OWNER")).contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest());
         }
         for (String path : new String[]{"/expenses?size=101", "/expenses?page=-1", "/expenses?category=BAD",
                 "/expenses?startDate=2094-02-01&endDate=2094-01-01", "/expenses/profit?startDate=2094-01-01",
                 "/expenses/profit?startDate=2094-02-01&endDate=2094-01-01"}) {
-            mvc.perform(get(path).with(user("admin"))).andExpect(status().isBadRequest());
+            mvc.perform(get(path).with(user("admin").roles("OWNER"))).andExpect(status().isBadRequest());
         }
-        mvc.perform(post("/expenses/9223372036854775807/void").with(user("admin"))
+        mvc.perform(post("/expenses/9223372036854775807/void").with(user("admin").roles("OWNER"))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Missing\"}"))
                 .andExpect(status().isNotFound());
-        mvc.perform(post("/expenses/1/void").with(user("admin"))
+        mvc.perform(post("/expenses/1/void").with(user("admin").roles("OWNER"))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\" \"}"))
                 .andExpect(status().isBadRequest());
     }

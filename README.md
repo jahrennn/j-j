@@ -101,3 +101,7 @@ For product-only labels and the data-preserving V12 migration, see the
 [product names deployment guide](docs/PRODUCT_NAMES_DEPLOYMENT.md).
 
 Loan endpoints (JWT required): `GET /api/loans?category=LPG|OTHER`, `POST /api/loans`, and `POST /api/loans/{id}/payments`.
+
+For promised payment dates, overdue lists, reminders, and credit-limit removal, see [Utang dates and reminders](docs/UTANG_DATES_AND_REMINDERS.md).
+
+For product restock settings, staff roles, activity records, and the V18 rollout, see [Restock and staff](docs/RESTOCK_AND_STAFF.md).

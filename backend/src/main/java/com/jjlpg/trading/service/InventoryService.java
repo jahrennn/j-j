@@ -24,21 +24,26 @@ public class InventoryService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final StockMovementService movements;
+    private final ReplenishmentService replenishment;
+    private final AuditService audit;
 
     public InventoryService(ProductRepository productRepository,
                             UserRepository userRepository,
-                            PasswordEncoder passwordEncoder, StockMovementService movements) {
+                            PasswordEncoder passwordEncoder, StockMovementService movements, ReplenishmentService replenishment, AuditService audit) {
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.movements = movements;
+        this.replenishment = replenishment;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
     public InventoryResponseDto getInventory() {
+        var units = replenishment.recentUnits();
         List<ProductDto> products = productRepository.findAll().stream()
                 .sorted(Comparator.comparing(Product::getSku))
-                .map(this::toDto)
+                .map(p -> toDto(p, units))
                 .toList();
         return new InventoryResponseDto(products);
     }
@@ -85,6 +90,8 @@ public class InventoryService {
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
         int before = product.getStock();
         product.setStock(Math.addExact(before, request.quantity()));
+        if (product.getCapital().compareTo(request.capital()) != 0)
+            audit.record("COST_CHANGED", "PRODUCT", productId, product.getName() + " · capital PHP " + product.getCapital() + " → " + request.capital());
         product.setCapital(request.capital());
         String note = request.note() == null || request.note().isBlank()
                 ? "Stock replenishment" : request.note().trim();
@@ -99,6 +106,9 @@ public class InventoryService {
         if (request.stock() != null && !request.stock().equals(product.getStock())) {
             throw new IllegalStateException("This app version cannot edit stock here. Refresh the app and use Adjust Stock with a reason.");
         }
+        if (product.getUnitPrice().compareTo(request.unitPrice()) != 0 || product.getCapital().compareTo(request.capital()) != 0)
+            audit.record("PRICE_CHANGED", "PRODUCT", productId, product.getName() + " · SRP PHP " + product.getUnitPrice() + " → " + request.unitPrice()
+                    + "; capital PHP " + product.getCapital() + " → " + request.capital());
         product.setSku(request.sku());
         product.setName(request.name());
         product.setUnitPrice(request.unitPrice());
@@ -108,7 +118,7 @@ public class InventoryService {
 
     @Transactional
     public void deleteProduct(Long productId, String password) {
-        User admin = userRepository.findByUsername("admin")
+        User admin = userRepository.findByUsername("system".equals(com.jjlpg.trading.security.Actor.username()) ? "admin" : com.jjlpg.trading.security.Actor.username())
                 .orElseThrow(() -> new IllegalStateException("Admin user not found"));
         if (!passwordEncoder.matches(password, admin.getPasswordHash())) {
             throw new IllegalArgumentException("Incorrect password");
@@ -120,13 +130,25 @@ public class InventoryService {
         productRepository.deleteById(productId);
     }
 
-    private ProductDto toDto(Product product) {
+    @Transactional
+    public ProductDto updateReplenishment(Long productId, com.jjlpg.trading.dto.RestockSettingsRequest request) {
+        Product product = productRepository.findByIdForUpdate(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+        String before = "minimum " + product.getMinimumStock() + ", lead " + product.getLeadTimeDays() + ", coverage " + product.getCoverageDays();
+        product.setMinimumStock(request.minimumStock()); product.setLeadTimeDays(request.leadTimeDays()); product.setCoverageDays(request.coverageDays());
+        audit.record("RESTOCK_SETTINGS_CHANGED", "PRODUCT", productId, product.getName() + " · " + before + " → minimum " + request.minimumStock() + ", lead " + request.leadTimeDays() + ", coverage " + request.coverageDays());
+        return toDto(productRepository.save(product));
+    }
+
+    private ProductDto toDto(Product product) { return toDto(product, replenishment.recentUnits()); }
+    private ProductDto toDto(Product product, java.util.Map<Long, Long> units) {
         return new ProductDto(
                 String.valueOf(product.getId()),
                 product.getName(),
                 product.getSku(),
                 product.getStock(),
                 product.getUnitPrice(),
-                product.getCapital());
+                com.jjlpg.trading.security.Actor.isOwner() ? product.getCapital() : null,
+                replenishment.calculate(product, units.getOrDefault(product.getId(), 0L)));
     }
 }

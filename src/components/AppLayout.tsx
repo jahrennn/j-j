@@ -5,8 +5,10 @@ import { Topbar } from "./Topbar"
 import { useAuth } from "@/lib/auth"
 
 export function AppLayout() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, loading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  if (loading) return <p role="status" className="p-8 text-sm text-muted-foreground">Checking your account…</p>
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />

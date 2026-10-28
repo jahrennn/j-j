@@ -2,7 +2,19 @@
 <html lang="en" class="bg-background">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <script>
+      // Apply the saved appearance before the first paint.
+      try {
+        if (localStorage.getItem("jjlpg.theme.v1") === "dark") {
+          document.documentElement.classList.add("dark")
+          document.documentElement.style.colorScheme = "dark"
+        }
+      } catch {
+        // Keep light mode when browser storage is unavailable.
+      }
+    </script>
+    <link rel="icon" type="image/png" href="/brand/jahren-john-mark-v1.png" />
+    <link rel="apple-touch-icon" href="/brand/jahren-john-mark-v1.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1e293b" />
     <meta
@@ -10,8 +22,8 @@
       content="Jahren and John LPG Trading - inventory and sales management admin portal."
     />
     <title>Jahren &amp; John LPG Trading</title>
-    <script type="module" crossorigin src="/assets/index-D3v0oqHX.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CDkoRzO4.css">
+    <script type="module" crossorigin src="/assets/index-4b0t_SaB.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Dc9qn2Im.css">
   </head>
   <body>
     <div id="root"></div>

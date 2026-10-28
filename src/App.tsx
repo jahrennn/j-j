@@ -1,4 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom"
+import { RoleGate } from "@/components/RoleGate"
+import { StaffPage } from "@/pages/StaffPage"
+import { ActivityPage } from "@/pages/ActivityPage"
 import { AuthProvider } from "@/lib/auth"
 import { AppLayout } from "@/components/AppLayout"
 import { LoginPage } from "@/pages/LoginPage"
@@ -16,13 +19,15 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<AppLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/sales" element={<SalesPage />} />
-          <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/tank-exchanges" element={<TankExchangePage />} />
-          <Route path="/loans" element={<LoanTrackerPage />} />
-          <Route path="/expenses" element={<ExpensesPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/dashboard" element={<RoleGate><DashboardPage /></RoleGate>} />
+          <Route path="/sales" element={<RoleGate><SalesPage /></RoleGate>} />
+          <Route path="/inventory" element={<RoleGate><InventoryPage /></RoleGate>} />
+          <Route path="/tank-exchanges" element={<RoleGate><TankExchangePage /></RoleGate>} />
+          <Route path="/loans" element={<RoleGate><LoanTrackerPage /></RoleGate>} />
+          <Route path="/expenses" element={<RoleGate><ExpensesPage /></RoleGate>} />
+          <Route path="/staff" element={<RoleGate><StaffPage /></RoleGate>} />
+          <Route path="/activity" element={<RoleGate><ActivityPage /></RoleGate>} />
+          <Route path="/settings" element={<RoleGate><SettingsPage /></RoleGate>} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

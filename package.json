@@ -10,7 +10,8 @@
     "test:stock": "node --test tests/stock-reliability.test.mjs",
     "test:branding": "node --test tests/receipt-branding.test.mjs",
     "check:live-stock": "node scripts/check-live-stock-ui.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:utang": "node --test tests/utang.test.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

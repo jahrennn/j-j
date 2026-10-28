@@ -54,7 +54,7 @@ class StockHistoryTest {
                 .thenAnswer(call -> saved);
         SalesService service = new SalesService(sales, products, mock(UserRepository.class),
                 mock(PasswordEncoder.class), mock(LoanService.class), mock(LoanRepository.class), movements,
-                mock(TankExchangeRepository.class), mock(SaleRequestRepository.class));
+                mock(TankExchangeRepository.class), mock(SaleRequestRepository.class), mock(AuditService.class));
 
         SaleRecordDto first = service.recordSale(new CreateSaleRequest(1L, 2, "Buyer", "", "Pick up", "Cash", null));
         assertEquals(money("1800.00"), first.totalAmount());
@@ -77,7 +77,7 @@ class StockHistoryTest {
     @Test
     void adjustmentRequiresReasonAndRecordsActorAndQuantity() {
         StockMovementRepository repository = mock(StockMovementRepository.class);
-        StockMovementService movementService = new StockMovementService(repository);
+        StockMovementService movementService = new StockMovementService(repository, mock(AuditService.class));
         Product product = product();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("admin", null, List.of()));
@@ -102,7 +102,7 @@ class StockHistoryTest {
         when(products.findByIdForUpdate(1L)).thenReturn(Optional.of(product));
         when(products.save(any())).thenAnswer(call -> call.getArgument(0));
         InventoryService service = new InventoryService(products, mock(UserRepository.class),
-                mock(PasswordEncoder.class), movements);
+                mock(PasswordEncoder.class), movements, mock(ReplenishmentService.class), mock(AuditService.class));
 
         service.updateProduct(1L, new UpdateProductRequest("RF-11", "11kg Refill",
                 money("1050.00"), money("800.00")));
@@ -148,7 +148,7 @@ class StockHistoryTest {
         when(products.findByIdForUpdate(1L)).thenReturn(Optional.of(product));
 
         SalesService service = new SalesService(sales, products, users, passwords,
-                mock(LoanService.class), loans, movements, mock(TankExchangeRepository.class), mock(SaleRequestRepository.class));
+                mock(LoanService.class), loans, movements, mock(TankExchangeRepository.class), mock(SaleRequestRepository.class), mock(AuditService.class));
         service.deleteSale(7L, "secret");
 
         assertEquals(10, product.getStock());
@@ -174,7 +174,7 @@ class StockHistoryTest {
         assertEquals("LPG Tank", productJson.get("type").asText());
         var loanJson = mapper.valueToTree(new LoanResponseDto(1L, "LPG", "Buyer", "2026-10-07",
                 "Sale", "Brand Tank (1x)", money("100.00"), BigDecimal.ZERO,
-                money("100.00"), "UNPAID", null, 1L, List.of()));
+                money("100.00"), "UNPAID", null, 1L, List.of(), null));
         assertEquals("Brand Tank (1x)", loanJson.get("itemsPurchased").asText());
     }
 }

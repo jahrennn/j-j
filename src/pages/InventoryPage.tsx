@@ -1,11 +1,18 @@
+import { usePrivacy, privateText, requireVisibleDetails } from "@/lib/privacy"
 import { useEffect, useState, FormEvent, useRef } from "react"
 import { Cylinder, Package, Loader2, Plus, Edit2, Trash2, AlertTriangle, History, SlidersHorizontal, RefreshCw } from "lucide-react"
 import { Badge, Card, Button, Modal, Input, Label, Select } from "@/components/ui"
-import { getInventory, getStockMovements, createProduct, updateProduct, updateStock, deleteProduct, restockProduct, type Product, type StockMovementPage } from "@/lib/api"
+import { getInventory, getStockMovements, createProduct, updateProduct, updateStock, deleteProduct, restockProduct, updateReplenishment, type Product, type StockMovementPage } from "@/lib/api"
 import { cn, formatCurrency } from "@/lib/utils"
+import { useAuth } from "@/lib/auth"
 import { useInventoryRefresh } from "@/lib/useInventoryRefresh"
 
 export function InventoryPage() {
+  const { privacyEnabled } = usePrivacy()
+  const { isOwner = true } = useAuth()
+  const [planTarget, setPlanTarget] = useState<Product | null>(null)
+  const [planError, setPlanError] = useState("")
+  const [planBusy, setPlanBusy] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -72,19 +79,19 @@ export function InventoryPage() {
   }
 
   useEffect(() => {
-    fetchMovements()
-  }, [movementProductId, movementPage])
+    if (isOwner) void fetchMovements()
+    else setMovementLoading(false)
+  }, [movementProductId, movementPage, isOwner])
 
   useInventoryRefresh(() => {
-    if (!isSubmitting && !isDeleting && !loading && !refreshing && !movementLoading) {
-      void fetchInventory(true); void fetchMovements(true)
+    if (!isSubmitting && !isDeleting && !loading && !refreshing && (!isOwner || !movementLoading)) {
+      void fetchInventory(true); if (isOwner) void fetchMovements(true)
     }
   })
 
   const refreshInventoryAndHistory = () => {
     fetchInventory()
-    if (movementPage === 0) fetchMovements()
-    else setMovementPage(0)
+    if (isOwner) { if (movementPage === 0) fetchMovements(); else setMovementPage(0) }
   }
 
   // Focus password input when delete modal opens
@@ -207,10 +214,10 @@ export function InventoryPage() {
         <Button variant="outline" disabled={loading || refreshing} onClick={refreshInventoryAndHistory}>
           <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />{refreshing ? "Refreshing…" : "Refresh"}
         </Button>
-        <Button onClick={() => setAddProductOpen(true)}>
+        {isOwner && <Button onClick={() => setAddProductOpen(true)}>
           <Plus className="h-4 w-4" />
           Add Product
-        </Button>
+        </Button>}
         </div>
       </div>
 
@@ -225,17 +232,17 @@ export function InventoryPage() {
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-5 py-3 font-medium">Product</th>
                 <th className="px-5 py-3 font-medium">SKU</th>
-                <th className="px-5 py-3 text-right font-medium">Capital</th>
+                {isOwner && <th className="px-5 py-3 text-right font-medium">Capital</th>}
                 <th className="px-5 py-3 text-right font-medium">SRP</th>
                 <th className="px-5 py-3 text-right font-medium">Stock</th>
                 <th className="px-5 py-3 text-right font-medium">Status</th>
-                <th className="px-5 py-3 text-right font-medium">Actions</th>
+                {isOwner && <th className="px-5 py-3 text-right font-medium">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center">
+                  <td colSpan={isOwner ? 7 : 5} className="px-5 py-12 text-center">
                     <span className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading inventory...
@@ -244,13 +251,13 @@ export function InventoryPage() {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-destructive">
+                  <td colSpan={isOwner ? 7 : 5} className="px-5 py-12 text-center text-destructive">
                     {error}
                   </td>
                 </tr>
               ) : (
                 products.map((p) => {
-                  const low = p.stock < 20
+                  const low = p.replenishment?.needsReorder ?? p.stock === 0
                   return (
                     <tr
                       key={p.sku}
@@ -271,9 +278,9 @@ export function InventoryPage() {
                       <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
                         {p.sku}
                       </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-foreground">
-                        {formatCurrency(p.capital)}
-                      </td>
+                      {isOwner && <td className="px-5 py-3 text-right tabular-nums text-foreground">
+                        {formatCurrency(p.capital ?? 0)}
+                      </td>}
                       <td className="px-5 py-3 text-right tabular-nums text-foreground">
                         {formatCurrency(p.unitPrice)}
                       </td>
@@ -288,10 +295,10 @@ export function InventoryPage() {
                               : "bg-success/15 text-success",
                           )}
                         >
-                          {low ? "Low stock" : "In stock"}
+                          {p.stock === 0 ? "Out of stock" : low ? "Reorder soon" : "In stock"}
                         </Badge>
                       </td>
-                      <td className="px-5 py-3 text-right">
+                      {isOwner && <td className="px-5 py-3 text-right">
                         <div className="inline-flex items-center gap-1">
                           <Button
                             variant="ghost"
@@ -331,7 +338,7 @@ export function InventoryPage() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                      </td>
+                      </td>}
                     </tr>
                   )
                 })
@@ -341,7 +348,37 @@ export function InventoryPage() {
         </div>
       </Card>
 
-      <Card className="overflow-hidden">
+      <Card className="p-5">
+        <h3 className="font-semibold">Restock planning</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Based on the last 30 days of sales. Reorder point = minimum stock + demand during supplier lead time. Suggested quantities cover lead time plus target coverage. Review suggestions before ordering.</p>
+        {loading ? <p className="mt-4 text-sm text-muted-foreground">Loading forecasts…</p> : error ? <p className="mt-4 text-sm text-muted-foreground">Refresh stock to load current forecasts.</p> : <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{products.map(product => {
+          const plan = product.replenishment
+          return <div key={product.id} className={cn("rounded-lg border p-4", plan?.needsReorder ? "border-warning/40 bg-warning/5" : "border-border")}>
+            <div className="flex justify-between gap-2"><div><p className="font-semibold">{product.name}</p><p className="text-xs text-muted-foreground">{product.sku} · {product.stock} in stock</p></div>{plan?.needsReorder && <Badge className="h-fit bg-warning/15 text-warning-foreground">Reorder</Badge>}</div>
+            {plan ? <><div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs text-muted-foreground">Estimated remaining</p><p className="mt-1 font-semibold">{product.stock === 0 ? "Out of stock" : plan.daysRemaining == null ? "No recent sales" : `${plan.daysRemaining} days`}</p></div><div><p className="text-xs text-muted-foreground">Suggested reorder</p><p className="mt-1 font-semibold">{plan.suggestedQuantity} units</p></div></div>
+              <p className="mt-3 text-xs text-muted-foreground">{plan.unitsSold} units sold / {plan.observationDays} days · {plan.averageDailySales} per day</p>
+              <p className="mt-1 text-xs text-muted-foreground">Minimum {plan.minimumStock} · Lead time {plan.leadTimeDays} days · Coverage {plan.coverageDays} days</p>
+              <p className="mt-1 text-xs text-muted-foreground">Reorder at {plan.reorderPoint} units · Target {plan.targetStock} units</p></> : <p className="mt-3 text-sm text-muted-foreground">Forecast unavailable. Update the backend to enable planning.</p>}
+            {isOwner && <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" size="sm" aria-label={`Restock settings for ${product.name}`} onClick={() => { setPlanError(""); setPlanTarget(product) }}>Settings</Button>{!!plan?.suggestedQuantity && <Button size="sm" onClick={() => setRestockProductTarget(product)}>Restock {plan.suggestedQuantity}</Button>}</div>}
+          </div>
+        })}</div>}
+      </Card>
+
+      <Modal isOpen={!!planTarget} onClose={() => { if (!planBusy) setPlanTarget(null) }} title="Restock settings">
+        {planTarget && <form key={planTarget.id} onSubmit={async e => {
+          e.preventDefault(); if (planBusy) return
+          const form = new FormData(e.currentTarget); setPlanBusy(true); setPlanError("")
+          try { await updateReplenishment(planTarget.id, { minimumStock: Number(form.get("minimumStock")), leadTimeDays: Number(form.get("leadTimeDays")), coverageDays: Number(form.get("coverageDays")) }); setPlanTarget(null); refreshInventoryAndHistory() }
+          catch (err) { setPlanError(err instanceof Error ? err.message : "Could not save restock settings") }
+          finally { setPlanBusy(false) }
+        }} className="space-y-4"><p className="font-medium">{planTarget.name}</p><fieldset disabled={planBusy} className="space-y-4">
+          <div className="space-y-1"><Label htmlFor="minimumStock">Minimum stock / reserve (units)</Label><Input id="minimumStock" name="minimumStock" type="number" min="0" max="1000000" step="1" required defaultValue={planTarget.replenishment?.minimumStock ?? 20} /></div>
+          <div className="space-y-1"><Label htmlFor="leadTimeDays">Supplier lead time (days)</Label><Input id="leadTimeDays" name="leadTimeDays" type="number" min="0" max="365" step="1" required defaultValue={planTarget.replenishment?.leadTimeDays ?? 3} /></div>
+          <div className="space-y-1"><Label htmlFor="coverageDays">Target coverage after delivery (days)</Label><Input id="coverageDays" name="coverageDays" type="number" min="1" max="365" step="1" required defaultValue={planTarget.replenishment?.coverageDays ?? 14} /></div>
+        </fieldset>{planError && <p role="alert" className="text-sm text-destructive">{planError}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={planBusy} onClick={() => setPlanTarget(null)}>Cancel</Button><Button type="submit" disabled={planBusy}>{planBusy ? "Saving…" : "Save settings"}</Button></div></form>}
+      </Modal>
+
+      {isOwner && <Card className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="flex items-center gap-2 font-semibold"><History className="h-4 w-4" /> Stock Movement History</h3>
@@ -366,7 +403,7 @@ export function InventoryPage() {
             </tr></thead>
             <tbody>
               {movementLoading ? <tr><td colSpan={7} className="px-5 py-8 text-center">Loading history...</td></tr>
-                : movementError ? <tr><td colSpan={7} className="px-5 py-8 text-center text-destructive">{movementError}</td></tr>
+                : movementError ? <tr><td colSpan={7} className="px-5 py-8 text-center text-destructive">{privateText(movementError)}</td></tr>
                 : !movements?.content.length ? <tr><td colSpan={7} className="px-5 py-8 text-center text-muted-foreground">No stock movements found.</td></tr>
                 : movements.content.map((movement) => (
                   <tr key={movement.id} className="border-b border-border last:border-0">
@@ -375,8 +412,8 @@ export function InventoryPage() {
                     <td className="px-5 py-3 capitalize">{movement.movementType.replace(/_/g, " ").toLowerCase()}</td>
                     <td className={cn("px-5 py-3 text-right font-semibold tabular-nums", movement.quantityChange < 0 ? "text-destructive" : "text-success")}>{movement.quantityChange > 0 ? "+" : ""}{movement.quantityChange}</td>
                     <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums">{movement.stockBefore} → {movement.stockAfter}</td>
-                    <td className="px-5 py-3">{movement.reason}</td>
-                    <td className="px-5 py-3">{movement.actor}</td>
+                    <td className="px-5 py-3">{privateText(movement.reason)}</td>
+                    <td className="px-5 py-3">{privateText(movement.actor)}</td>
                   </tr>
                 ))}
             </tbody>
@@ -389,7 +426,7 @@ export function InventoryPage() {
             <Button size="sm" variant="outline" disabled={movementLoading || movementPage + 1 >= (movements?.totalPages ?? 0)} onClick={() => setMovementPage((p) => p + 1)}>Next</Button>
           </div>
         </div>
-      </Card>
+      </Card>}
 
       {/* Add Product Modal */}
       <Modal
@@ -492,7 +529,7 @@ export function InventoryPage() {
               type="number"
               min="1"
               required
-              defaultValue={0}
+              defaultValue={restockProductTarget?.replenishment?.suggestedQuantity || 1}
             />
           </div>
           <div className="space-y-1">
@@ -584,7 +621,7 @@ export function InventoryPage() {
 
           {/* Password field */}
           <div className="space-y-1">
-            <Label htmlFor="deleteProductPassword">Admin Password</Label>
+            <Label htmlFor="deleteProductPassword">Your Owner Password</Label>
             <Input
               id="deleteProductPassword"
               ref={passwordInputRef}
@@ -598,7 +635,7 @@ export function InventoryPage() {
               required
             />
             {deleteError && (
-              <p className="mt-1 text-xs text-destructive">{deleteError}</p>
+              <p className="mt-1 text-xs text-destructive">{privateText(deleteError)}</p>
             )}
           </div>
 

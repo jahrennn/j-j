@@ -103,6 +103,24 @@ class ApiEndpointContractTest {
                 .content("{\"borrowerName\":\"API Borrower\",\"description\":\"Cash loan\",\"totalAmount\":100,\"downpayment\":20}"))
                 .andExpect(status().isOk()).andReturn());
         assertEquals(80, loan.get("remainingBalance").asInt());
+        JsonNode support = json(mvc.perform(get("/loans/recording-support").header("Authorization", auth()))
+                .andExpect(status().isOk()).andReturn());
+        assertTrue(support.get("promisedPaymentDates").asBoolean());
+        JsonNode saleSupport = json(mvc.perform(get("/sales/recording-support").header("Authorization", auth()))
+                .andExpect(status().isOk()).andReturn());
+        assertTrue(saleSupport.get("promisedPaymentDates").asBoolean());
+        // Retired credit management endpoints are no longer exposed.
+        mvc.perform(post("/loans/customers").header("Authorization", auth())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Retired\",\"creditLimit\":0}"))
+                .andExpect(status().isForbidden());
+        JsonNode withDate = json(mvc.perform(put("/loans/" + loan.get("id").asText() + "/due-date").header("Authorization", auth())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"dueDate\":\"2099-01-01\"}"))
+                .andExpect(status().isOk()).andReturn());
+        assertEquals("2099-01-01", withDate.get("dueDate").asText());
+        mvc.perform(put("/loans/" + loan.get("id").asText() + "/due-date").header("Authorization", auth())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"dueDate\":\"2000-01-01\"}"))
+                .andExpect(status().isBadRequest());
+
         mvc.perform(get("/loans?category=OTHER").header("Authorization", auth())).andExpect(status().isOk());
         JsonNode paid = json(mvc.perform(post("/loans/" + loan.get("id").asText() + "/payments")
                 .header("Authorization", auth()).contentType(MediaType.APPLICATION_JSON)

@@ -9,8 +9,12 @@ public record ProductDto(
         String sku,
         int stock,
         BigDecimal unitPrice,
-        BigDecimal capital
+        BigDecimal capital,
+        ReplenishmentDto replenishment
 ) {
+    public ProductDto(String id, String name, String sku, int stock, BigDecimal unitPrice, BigDecimal capital) {
+        this(id, name, sku, stock, unitPrice, capital, null);
+    }
     // Temporary response alias for older frontend builds during backend-first deployment.
     @JsonProperty("type")
     public String legacyType() { return "LPG Tank"; }

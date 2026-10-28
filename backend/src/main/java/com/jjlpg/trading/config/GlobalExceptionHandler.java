@@ -15,12 +15,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
         return ResponseEntity.status(ex.getStatusCode())
+                .headers(ex.getHeaders())
                 .body(new ErrorResponse(ex.getReason()));
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(Exception ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ErrorResponse("Your staff role does not allow this action"));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleInvalidInput(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(new ErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataConflict(Exception ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("This change conflicts with an existing record. Refresh and check the details."));
     }
 
     @ExceptionHandler(IllegalStateException.class)
@@ -40,6 +51,12 @@ public class GlobalExceptionHandler {
             org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ErrorResponse> handleMalformedRequest(Exception ex) {
         return ResponseEntity.badRequest().body(new ErrorResponse("Invalid request value or format"));
+    }
+
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleMissingEndpoint(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Endpoint not found"));
     }
 
     @ExceptionHandler(Exception.class)

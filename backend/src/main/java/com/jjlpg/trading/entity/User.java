@@ -20,6 +20,20 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private StaffRole role = StaffRole.OWNER;
+    @Column(nullable = false)
+    private boolean enabled = true;
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion;
+    public StaffRole getRole() { return role; }
+    public void setRole(StaffRole role) { this.role = role; }
+    public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public int getTokenVersion() { return tokenVersion; }
+    public void setTokenVersion(int tokenVersion) { this.tokenVersion = tokenVersion; }
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

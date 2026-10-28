@@ -1,8 +1,6 @@
 package com.jjlpg.trading.controller;
 
-import com.jjlpg.trading.dto.CreateLoanRequest;
-import com.jjlpg.trading.dto.LoanResponseDto;
-import com.jjlpg.trading.dto.RecordPaymentRequest;
+import com.jjlpg.trading.dto.*;
 import com.jjlpg.trading.entity.LoanCategory;
 import com.jjlpg.trading.service.LoanService;
 import jakarta.validation.Valid;
@@ -28,6 +26,17 @@ public class LoanController {
     @PostMapping
     public LoanResponseDto createOtherLoan(@Valid @RequestBody CreateLoanRequest request) {
         return loanService.createOtherLoan(request);
+    }
+
+    @PutMapping("/{id}/due-date")
+    public LoanResponseDto updateDueDate(@PathVariable Long id,
+            @Valid @RequestBody UpdateLoanDueDateRequest request) {
+        return loanService.updateDueDate(id, request);
+    }
+
+    @GetMapping("/recording-support")
+    public java.util.Map<String, Boolean> recordingSupport() {
+        return java.util.Map.of("promisedPaymentDates", true);
     }
 
     @PostMapping("/{id}/payments")

@@ -57,6 +57,12 @@ public class InventoryController {
         return inventoryService.updateProduct(id, request);
     }
 
+    @PutMapping("/products/{id}/replenishment")
+    public ProductDto updateReplenishment(@PathVariable Long id,
+            @Valid @RequestBody com.jjlpg.trading.dto.RestockSettingsRequest request) {
+        return inventoryService.updateReplenishment(id, request);
+    }
+
     @DeleteMapping("/products/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id,
                                               @Valid @RequestBody DeleteProductRequest request) {

@@ -78,6 +78,7 @@ function page(name, overrides = {}, storage = new Map()) {
       if (id === "react") return react
       if (id === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" }
       if (id === "@/lib/api") return api
+      if (id === "@/lib/privacy") return { usePrivacy: () => ({ privacyEnabled: false }), privateText: value => value, requireVisibleDetails: () => {} }
       if (id === "@/lib/auth") return { useAuth: () => ({ username: "admin" }) }
       if (id === "@/lib/utils") return { cn: (...parts) => parts.filter(Boolean).join(" "), formatCurrency: String, formatDate: String }
       if (id === "@/lib/pendingSale" || id === "@/lib/useInventoryRefresh") return load(`src/lib/${id.split("/").at(-1)}.ts`)

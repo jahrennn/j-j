@@ -28,6 +28,11 @@ public class LoanPayment {
     @Column(length = 500)
     private String notes;
 
+    @Column(name = "collected_by", nullable = false, length = 100)
+    private String collectedBy = "system";
+    public String getCollectedBy() { return collectedBy; }
+    public void setCollectedBy(String value) { collectedBy = value; }
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -7,5 +7,6 @@ public record LoanPaymentDto(
         BigDecimal amount,
         String paymentDate,
         String notes,
-        String createdAt
+        String createdAt,
+        String collectedBy
 ) {}

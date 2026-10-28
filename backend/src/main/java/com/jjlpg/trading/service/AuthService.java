@@ -26,13 +26,19 @@ public class AuthService {
         this.jwtService = jwtService;
     }
 
+    public com.jjlpg.trading.dto.StaffDto current(String username) {
+        User u = userRepository.findByUsername(username).filter(User::isEnabled)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account unavailable"));
+        return new com.jjlpg.trading.dto.StaffDto(u.getId(), u.getUsername(), u.getRole(), true);
+    }
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByUsername(request.username())
+                .filter(User::isEnabled)
                 .filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED, "Invalid username or password."));
 
-        String token = jwtService.generateToken(user.getUsername());
-        return new LoginResponse(token, user.getUsername());
+        String token = jwtService.generateToken(user.getUsername(), user.getTokenVersion(), user.getId());
+        return new LoginResponse(token, user.getUsername(), user.getRole());
     }
 }

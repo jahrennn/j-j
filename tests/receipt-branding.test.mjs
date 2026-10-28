@@ -38,6 +38,7 @@ function receiptModule({ imageFails = false, popup = null } = {}) {
   const require = (name) => {
     if (name === "react/jsx-runtime") return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) }
     if (name === "@/components/BrandLogo") return { BrandLogo: "BrandLogo" }
+    if (name === "@/lib/privacyStore") return { requireVisibleDetails: () => {}, isPrivacyEnabled: () => false }
     if (name === "@/lib/brand") return { BRAND_MARK_URL: "/brand/jahren-john-mark-v1.png" }
     throw new Error(`Unexpected import: ${name}`)
   }

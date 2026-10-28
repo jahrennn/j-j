@@ -17,7 +17,8 @@ public record LoanResponseDto(
         String status,
         String notes,
         Long saleId,
-        List<LoanPaymentDto> payments
+        List<LoanPaymentDto> payments,
+        String dueDate
 ) {
     // Temporary response alias for older frontend builds during rollout.
     @JsonProperty("itemsPurchased")

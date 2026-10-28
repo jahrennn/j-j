@@ -1,3 +1,4 @@
+import { usePrivacy, privateText, requireVisibleDetails } from "@/lib/privacy"
 import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import {
@@ -135,6 +136,7 @@ function StatCard({ label, value, sub, icon: Icon, tint }: StatCardProps) {
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 export function DashboardPage() {
+  const { privacyEnabled } = usePrivacy()
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null)
   const [inventory, setInventory] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -183,7 +185,7 @@ export function DashboardPage() {
     }),
   })) ?? []
 
-  const lowStockProducts = inventory.filter((p) => p.stock < 20)
+  const lowStockProducts = inventory.filter((p) => p.replenishment?.needsReorder ?? p.stock === 0)
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -213,7 +215,7 @@ export function DashboardPage() {
           />
           <StatCard
             label="Gross Profit"
-            value={today ? formatCurrency(today.totalProfit) : undefined}
+            value={today ? formatCurrency(today.totalProfit ?? 0) : undefined}
             icon={TrendingUp}
             tint="bg-success/15 text-success"
           />
@@ -246,7 +248,7 @@ export function DashboardPage() {
           />
           <StatCard
             label="Gross Profit"
-            value={week ? formatCurrency(week.totalProfit) : undefined}
+            value={week ? formatCurrency(week.totalProfit ?? 0) : undefined}
             icon={TrendingUp}
             tint="bg-success/15 text-success"
           />
@@ -284,7 +286,7 @@ export function DashboardPage() {
           </div>
         </div>
         <div className="px-2 py-4">
-          {loading ? (
+          {privacyEnabled ? <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Financial chart hidden in demo privacy mode</div> : loading ? (
             <div className="flex h-64 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
@@ -355,7 +357,7 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="px-2 py-4">
-            {loading ? (
+            {privacyEnabled ? <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">Financial chart hidden in demo privacy mode</div> : loading ? (
               <div className="flex h-52 items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
@@ -420,7 +422,7 @@ export function DashboardPage() {
 
           {inventoryError && (
             <div role="alert" className="border-b border-border px-5 py-3 text-sm text-destructive">
-              Stock could not be refreshed. Displayed quantities may be outdated. {inventoryError}
+              Stock could not be refreshed. Displayed quantities may be outdated. {privateText(inventoryError)}
               <Button variant="outline" size="sm" disabled={inventoryRefreshing} onClick={() => void refreshInventory()}>
                 Retry
               </Button>
@@ -430,7 +432,7 @@ export function DashboardPage() {
           {/* Low stock alert */}
           {lowStockProducts.length > 0 && (
             <div className="border-b border-border bg-destructive/5 px-5 py-2.5 text-xs text-destructive font-medium">
-              ⚠ {lowStockProducts.length} product{lowStockProducts.length > 1 ? "s" : ""} low on stock
+              ⚠ {lowStockProducts.length} product{lowStockProducts.length > 1 ? "s" : ""} ready for restock
             </div>
           )}
 
@@ -443,7 +445,7 @@ export function DashboardPage() {
               <p className="px-5 py-8 text-center text-sm text-muted-foreground">No products yet</p>
             ) : (
               inventory.map((product) => {
-                const low = product.stock < 20
+                const low = product.replenishment?.needsReorder ?? product.stock === 0
                 return (
                   <div
                     key={product.sku}
@@ -451,7 +453,7 @@ export function DashboardPage() {
                   >
                     <div className="flex items-center gap-3">
                       <Cylinder className="h-4 w-4 shrink-0 text-primary" />
-                      <span className="text-sm text-foreground truncate max-w-[110px]">{product.name}</span>
+                      <div><span className="block text-sm text-foreground truncate max-w-[130px]">{product.name}</span>{product.replenishment && <p className="mt-1 text-[11px] text-muted-foreground">{product.replenishment.daysRemaining == null ? "No recent sales" : `${product.replenishment.daysRemaining} days left`}{low ? ` · reorder ${product.replenishment.suggestedQuantity}` : ""}</p>}</div>
                     </div>
                     <Badge
                       className={cn(

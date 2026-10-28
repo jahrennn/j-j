@@ -19,9 +19,11 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final com.jjlpg.trading.repository.UserRepository users;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public JwtAuthFilter(JwtService jwtService, com.jjlpg.trading.repository.UserRepository users) {
         this.jwtService = jwtService;
+        this.users = users;
     }
 
     @Override
@@ -41,13 +43,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
         }
 
-        // Fallback to Bearer token in header for API clients or dev
-        if (token == null) {
-            String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                token = authHeader.substring(7);
-            }
-        }
+        String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (authHeader != null && authHeader.startsWith("Bearer ")) token = authHeader.substring(7);
 
         if (token == null) {
             filterChain.doFilter(request, response);
@@ -55,10 +52,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
         if (jwtService.isTokenValid(token)) {
             String username = jwtService.extractUsername(token);
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(username, null, List.of());
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            int version = jwtService.tokenVersion(token);
+            String userId = jwtService.userId(token);
+            var user = users.findByUsername(username).filter(u -> u.isEnabled() && u.getTokenVersion() == version && u.getId().toString().equals(userId));
+            if (user.isPresent()) {
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(username, null,
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + user.get().getRole().name())));
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
         }
 
         filterChain.doFilter(request, response);

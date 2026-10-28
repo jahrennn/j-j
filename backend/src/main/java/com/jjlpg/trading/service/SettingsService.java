@@ -54,10 +54,12 @@ public class SettingsService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already taken.");
             }
             user.setUsername(request.username());
+            user.setTokenVersion(Math.addExact(user.getTokenVersion(), 1));
         }
 
         if (request.newPassword() != null && !request.newPassword().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+            user.setTokenVersion(Math.addExact(user.getTokenVersion(), 1));
         }
 
         userRepository.save(user);

@@ -37,12 +37,13 @@ public class SalesService {
     private final StockMovementService movements;
     private final TankExchangeRepository tankExchanges;
     private final SaleRequestRepository saleRequests;
+    private final AuditService audit;
 
     public SalesService(SaleRepository saleRepository, ProductRepository productRepository,
                         UserRepository userRepository, PasswordEncoder passwordEncoder,
                         LoanService loanService, LoanRepository loanRepository,
                         StockMovementService movements, TankExchangeRepository tankExchanges,
-                        SaleRequestRepository saleRequests) {
+                        SaleRequestRepository saleRequests, AuditService audit) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
@@ -52,6 +53,7 @@ public class SalesService {
         this.movements = movements;
         this.tankExchanges = tankExchanges;
         this.saleRequests = saleRequests;
+        this.audit = audit;
     }
 
     @Transactional
@@ -123,9 +125,12 @@ public class SalesService {
             throw new IllegalArgumentException("A credit sale must have a positive total amount");
         }
         sale.setDownpayment(downpayment);
+        sale.setRecordedBy(com.jjlpg.trading.security.Actor.username());
 
         Sale savedSale = saleRepository.save(sale);
         if (saleRequest != null) saleRequest.setSaleId(savedSale.getId());
+        audit.record("SALE_RECORDED", "SALE", savedSale.getId(), savedSale.getTransactionId() + " · " + savedSale.getBuyerName()
+                + " · " + savedSale.getPaymentMethod() + " · collected PHP " + (isUtang ? downpayment : savedSale.getTotalAmount()));
         movements.record(product, StockMovementType.SALE, stockBefore, product.getStock(),
                 "Sale " + savedSale.getTransactionId(), savedSale.getTransactionId());
 
@@ -145,7 +150,7 @@ public class SalesService {
         if (isUtang) {
             String productPurchased = sale.getProductName() + " (" + sale.getQuantity() + "x)";
             loanService.createLpgLoan(savedSale, sale.getBuyerName(), sale.getSaleDate(),
-                    productPurchased, sale.getTotalAmount(), downpayment);
+                    productPurchased, sale.getTotalAmount(), downpayment, request.dueDate());
         }
 
         return toDto(savedSale).withRemainingStock(product.getStock());
@@ -157,10 +162,11 @@ public class SalesService {
         var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         boolean pickup = "Pick up".equalsIgnoreCase(request.deliveryMethod());
         boolean credit = "Utang".equalsIgnoreCase(request.paymentMethod());
-        var values = java.util.Arrays.asList(request.productId(), request.quantity(), request.buyerName(),
+        var values = new java.util.ArrayList<Object>(java.util.Arrays.asList(request.productId(), request.quantity(), request.buyerName(),
                 pickup ? "Pick up" : request.address(), pickup ? "PICKUP" : "DELIVER", credit ? "UTANG" : "CASH",
                 credit && request.downpayment() != null ? request.downpayment().stripTrailingZeros().toPlainString() : "0",
-                request.tankExchange(), auth != null && auth.isAuthenticated() ? auth.getName() : "system");
+                request.tankExchange(), auth != null && auth.isAuthenticated() ? auth.getName() : "system"));
+        if (credit && request.dueDate() != null) values.add(request.dueDate().toString());
         try {
             byte[] bytes = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsBytes(values);
             return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
@@ -182,7 +188,7 @@ public class SalesService {
     @Transactional
     public void deleteSale(Long saleId, String password) {
         // Verify admin password before deleting
-        User admin = userRepository.findByUsername("admin")
+        User admin = userRepository.findByUsername("system".equals(com.jjlpg.trading.security.Actor.username()) ? "admin" : com.jjlpg.trading.security.Actor.username())
                 .orElseThrow(() -> new IllegalStateException("Admin user not found"));
         if (!passwordEncoder.matches(password, admin.getPasswordHash())) {
             throw new IllegalArgumentException("Incorrect password");
@@ -235,14 +241,14 @@ public class SalesService {
                 displayName,
                 sale.getQuantity(),
                 sale.getTotalAmount(),
-                capital,
-                sale.getTotalAmount().subtract(capital),
+                com.jjlpg.trading.security.Actor.isOwner() ? capital : null,
+                com.jjlpg.trading.security.Actor.isOwner() ? sale.getTotalAmount().subtract(capital) : null,
                 sale.getBuyerName(),
                 sale.getAddress(),
                 sale.getDeliveryMethod(),
                 sale.getPaymentMethod(),
                 sale.getDownpayment(),
-                sale.getProductId() == null ? null : String.valueOf(sale.getProductId()), null);
+                sale.getProductId() == null ? null : String.valueOf(sale.getProductId()), null, sale.getRecordedBy());
     }
 
     private SalesSummaryDto summarize(List<SaleRecordDto> records) {
@@ -255,7 +261,8 @@ public class SalesService {
                 : totalRevenue.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP);
         BigDecimal totalProfit = records.stream()
                 .map(SaleRecordDto::profit)
+                .filter(java.util.Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new SalesSummaryDto(totalRevenue, totalOrders, average, totalProfit);
+        return new SalesSummaryDto(totalRevenue, totalOrders, average, com.jjlpg.trading.security.Actor.isOwner() ? totalProfit : null);
     }
 }

@@ -1,3 +1,5 @@
+import { PrivacyToggle } from "@/components/PrivacyToggle"
+import { usePrivacy, PRIVACY_MASK } from "@/lib/privacy"
 import {
   forwardRef,
   type ButtonHTMLAttributes,
@@ -35,8 +37,9 @@ export const Button = forwardRef<
     variant?: ButtonVariant
     size?: ButtonSize
   }
->(({ className, variant = "primary", size = "md", ...props }, ref) => (
-  <button
+>(({ className, variant = "primary", size = "md", ...props }, ref) => {
+  const { privacyEnabled } = usePrivacy()
+  return <button
     ref={ref}
     className={cn(
       "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
@@ -45,23 +48,25 @@ export const Button = forwardRef<
       className,
     )}
     {...props}
+    disabled={props.disabled || (privacyEnabled && props.type === "submit")}
+    title={privacyEnabled && props.type === "submit" ? "Reveal sensitive details to save changes" : props.title}
   />
-))
+})
 Button.displayName = "Button"
 
 export const Input = forwardRef<
   HTMLInputElement,
   InputHTMLAttributes<HTMLInputElement>
->(({ className, ...props }, ref) => (
-  <input
-    ref={ref}
-    className={cn(
-      "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring disabled:opacity-50",
-      className,
-    )}
-    {...props}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const { privacyEnabled } = usePrivacy()
+  const monetary = /amount|price|capital|downpayment/i.test(`${props.name ?? ""} ${props.id ?? ""}`)
+  const masked = privacyEnabled && (monetary || !["number", "date", "checkbox", "radio"].includes(props.type ?? "text"))
+  const styles = cn("h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring disabled:opacity-50", className)
+  return <span className="block">
+    <input ref={ref} {...props} className={styles} hidden={masked || props.hidden} disabled={props.disabled || masked} aria-hidden={masked || undefined} title={masked ? undefined : props.title} />
+    {masked && <span role="textbox" aria-label={props["aria-label"] ?? "Hidden field"} aria-readonly="true" className={cn(styles, "flex items-center tracking-widest")}>{PRIVACY_MASK}</span>}
+  </span>
+})
 Input.displayName = "Input"
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -109,16 +114,15 @@ export function Badge({
 export const Select = forwardRef<
   HTMLSelectElement,
   SelectHTMLAttributes<HTMLSelectElement>
->(({ className, ...props }, ref) => (
-  <select
-    ref={ref}
-    className={cn(
-      "h-10 w-full appearance-none rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring disabled:opacity-50",
-      className,
-    )}
-    {...props}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const { privacyEnabled } = usePrivacy()
+  const masked = privacyEnabled && /productId|receipt-sale/.test(`${props.name ?? ""} ${props.id ?? ""}`)
+  return <span className="block w-full">
+    <select ref={ref} {...props} hidden={masked} disabled={props.disabled || masked} aria-hidden={masked || undefined}
+      className={cn("h-10 w-full appearance-none rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring disabled:opacity-50", className)} />
+    {masked && <span className="flex h-10 items-center rounded-lg border border-input bg-card px-3 text-sm tracking-widest">{PRIVACY_MASK}</span>}
+  </span>
+})
 Select.displayName = "Select"
 
 export function Modal({
@@ -132,6 +136,7 @@ export function Modal({
   title: string
   children: React.ReactNode
 }) {
+  const { privacyEnabled } = usePrivacy()
   if (!isOpen) return null
 
   return (
@@ -140,15 +145,16 @@ export function Modal({
         <Card role="dialog" aria-modal="true" aria-label={title} className="relative w-full shadow-lg">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <h3 className="font-semibold text-foreground">{title}</h3>
+            <div className="flex items-center gap-2"><PrivacyToggle />
             <button
               aria-label="Close dialog"
               onClick={onClose}
               className="rounded-lg p-1 hover:bg-muted text-muted-foreground transition-colors"
             >
               <X className="h-5 w-5" />
-            </button>
+            </button></div>
           </div>
-          <div className="p-5">{children}</div>
+          <div className="p-5">{privacyEnabled && <p role="status" className="mb-4 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">Demo privacy is on. Sensitive values are hidden and saving is paused. Reveal details using the eye button to edit.</p>}{children}</div>
         </Card>
       </div>
     </div>

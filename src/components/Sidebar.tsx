@@ -1,6 +1,9 @@
+import { usePrivacy, privateText, requireVisibleDetails } from "@/lib/privacy"
 import { NavLink } from "react-router-dom"
-import { LayoutDashboard, Receipt, Package, CreditCard, Settings, X, ArrowRightLeft, Wallet } from "lucide-react"
+import { LayoutDashboard, Receipt, Package, CreditCard, Settings, X, ArrowRightLeft, Wallet, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth"
+import { canVisit } from "@/lib/permissions"
 import { BrandLogo } from "@/components/BrandLogo"
 
 const navItems = [
@@ -11,6 +14,8 @@ const navItems = [
   { to: "/loans", label: "Loan Tracker", icon: CreditCard },
   { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/staff", label: "Staff accounts", icon: Users },
+  { to: "/activity", label: "Activity log", icon: Receipt },
 ]
 
 export function Sidebar({
@@ -20,6 +25,8 @@ export function Sidebar({
   open: boolean
   onClose: () => void
 }) {
+  const { privacyEnabled } = usePrivacy()
+  const { role } = useAuth()
   return (
     <>
       {open && (
@@ -39,7 +46,7 @@ export function Sidebar({
           <div className="flex items-center gap-2.5">
             <BrandLogo decorative className="h-10 w-10 rounded-lg bg-white p-0.5" />
             <div className="leading-tight">
-              <p className="text-sm font-semibold">Jahren &amp; John</p>
+              <p className="text-sm font-semibold">{privacyEnabled ? "Business demo" : "Jahren & John"}</p>
               <p className="text-xs text-sidebar-muted">LPG Trading</p>
             </div>
           </div>
@@ -53,7 +60,7 @@ export function Sidebar({
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {navItems.filter(item => canVisit(role, item.to)).map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -75,7 +82,7 @@ export function Sidebar({
 
         <div className="border-t border-sidebar-border px-5 py-4">
           <p className="text-xs text-sidebar-muted">
-            {"\u00A9"} {new Date().getFullYear()} J&amp;J LPG Trading
+            {"\u00A9"} {new Date().getFullYear()} {privacyEnabled ? "Business demo" : "J&J LPG Trading"}
           </p>
         </div>
       </aside>

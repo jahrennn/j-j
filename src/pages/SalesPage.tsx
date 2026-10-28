@@ -1,3 +1,4 @@
+import { usePrivacy, privateText, requireVisibleDetails } from "@/lib/privacy"
 import { useEffect, useState, FormEvent, useRef } from "react"
 import {
   DollarSign,
@@ -26,7 +27,7 @@ import {
   type SaleRecord,
   type Product,
 } from "@/lib/api"
-import { cn, formatCurrency, formatDate } from "@/lib/utils"
+import { cn, formatCurrency, formatDate, philippineToday } from "@/lib/utils"
 import { useInventoryRefresh } from "@/lib/useInventoryRefresh"
 import { ApiError, type CreateSalePayload } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
@@ -72,7 +73,8 @@ const summaryCards = [
 ]
 
 export function SalesPage() {
-  const { username } = useAuth()
+  const { privacyEnabled } = usePrivacy()
+  const { username, isOwner = true } = useAuth()
   const [range, setRange] = useState<DateRange>(defaultRange)
   const [data, setData] = useState<SalesResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -178,6 +180,7 @@ export function SalesPage() {
   }
 
   const handleBrowserPrint = () => {
+    if (privacyEnabled) return
     if (!printTarget || !receiptRef.current) return
     setReceiptError("")
     setReceiptNotice("")
@@ -187,6 +190,7 @@ export function SalesPage() {
   }
 
   const handleDownloadReceipt = async () => {
+    if (privacyEnabled) return
     if (!printTarget || receiptBusy) return
     setReceiptBusy(true)
     setReceiptError("")
@@ -239,6 +243,7 @@ export function SalesPage() {
         deliveryMethod: selectedDeliveryMethod,
         paymentMethod: selectedPaymentMethod,
         downpayment: dpValue,
+        dueDate: selectedPaymentMethod === "Utang" ? (formData.get("dueDate") as string) || null : undefined,
         tankExchange: hasTankExchange ? {
           customerTankProductId: customerTankId,
           suppliedTankProductId: productId,
@@ -294,9 +299,9 @@ export function SalesPage() {
   }
 
   const handleExportCSV = () => {
-    if (!data || data.records.length === 0) return
+    if (privacyEnabled || !data || data.records.length === 0) return
 
-    const headers = ["Date", "Transaction ID", "Buyer Name", "Product", "Quantity", "Total Amount (PHP)", "Capital (PHP)", "Gross Profit (PHP)", "Address"]
+    const headers = ["Date", "Transaction ID", "Buyer Name", "Product", "Quantity", "Total Amount (PHP)", ...(isOwner ? ["Capital (PHP)", "Gross Profit (PHP)"] : []), "Address", "Recorded by"]
     const rows = data.records.map((r) => [
       r.date,
       r.transactionId,
@@ -304,9 +309,9 @@ export function SalesPage() {
       r.productName,
       String(r.quantity),
       r.totalAmount.toFixed(2),
-      r.capital.toFixed(2),
-      r.profit.toFixed(2),
+      ...(isOwner ? [(r.capital ?? 0).toFixed(2), (r.profit ?? 0).toFixed(2)] : []),
       r.address || "",
+      r.recordedBy || "Unknown (legacy)",
     ])
 
     const csvContent = [headers, ...rows]
@@ -340,14 +345,14 @@ export function SalesPage() {
           <Button
             variant="outline"
             onClick={handleExportCSV}
-            disabled={!data || data.records.length === 0}
+            disabled={privacyEnabled || !data || data.records.length === 0}
           >
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
           <Button
             variant="outline"
-            disabled={loading || !data?.records.length}
+            disabled={privacyEnabled || loading || !data?.records.length}
             onClick={() => data?.records[0] && openReceipt(data.records[0])}
           >
             <Printer className="h-4 w-4" />
@@ -397,7 +402,7 @@ export function SalesPage() {
         ))}
       </div>
 
-      <ExpenseProfitPanel range={range} revision={profitRevision} title="Profit after operating expenses" />
+      {isOwner && <ExpenseProfitPanel range={range} revision={profitRevision} title="Profit after operating expenses" />}
 
       {/* Table */}
       <Card className="overflow-hidden">
@@ -420,16 +425,16 @@ export function SalesPage() {
                 <th className="px-5 py-3 font-medium">Product</th>
                 <th className="px-5 py-3 font-medium">Address</th>
                 <th className="px-5 py-3 text-right font-medium">Quantity</th>
-                <th className="px-5 py-3 text-right font-medium">Capital</th>
+                {isOwner && <th className="px-5 py-3 text-right font-medium">Capital</th>}
                 <th className="px-5 py-3 text-right font-medium">Total Amount</th>
-                <th className="px-5 py-3 text-right font-medium">Gross Profit</th>
+                {isOwner && <th className="px-5 py-3 text-right font-medium">Gross Profit</th>}
                 <th className="px-5 py-3 font-medium" />
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-12 text-center">
+                  <td colSpan={isOwner ? 9 : 7} className="px-5 py-12 text-center">
                     <span className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading sales records...
@@ -447,10 +452,10 @@ export function SalesPage() {
                         {formatDate(r.date)}
                         <div className="font-mono text-[10px] text-muted-foreground">
                           {r.transactionId}
-                        </div>
+                        </div><p className="mt-1 text-[10px] text-muted-foreground">By {privateText(r.recordedBy ?? "Unknown (legacy)")}</p>
                       </td>
                       <td className="whitespace-nowrap px-5 py-3 text-foreground">
-                        {r.buyerName || "-"}
+                        {privateText(r.buyerName || "-")}
                       </td>
                       <td className="px-5 py-3">
                         <Badge
@@ -460,15 +465,15 @@ export function SalesPage() {
                           {r.productName}
                         </Badge>
                       </td>
-                      <td className="px-5 py-3 text-foreground max-w-[150px] truncate" title={r.address}>
-                        {r.address || "-"}
+                      <td className="px-5 py-3 text-foreground max-w-[150px] truncate" title={privateText(r.address)}>
+                        {privateText(r.address || "-")}
                       </td>
                       <td className="px-5 py-3 text-right tabular-nums text-foreground">
                         {r.quantity}
                       </td>
-                      <td className="px-5 py-3 text-right font-medium tabular-nums text-foreground">
-                        {formatCurrency(r.capital)}
-                      </td>
+                      {isOwner && <td className="px-5 py-3 text-right font-medium tabular-nums text-foreground">
+                        {formatCurrency(r.capital ?? 0)}
+                      </td>}
                       <td className="px-5 py-3 text-right font-medium tabular-nums text-foreground">
                         <div>{formatCurrency(r.totalAmount)}</div>
                         {(r.paymentMethod === "UTANG" || (r as any).paymentMethod === "Utang") && (
@@ -477,27 +482,29 @@ export function SalesPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-right font-medium tabular-nums text-success">
-                        {formatCurrency(r.profit)}
-                      </td>
+                      {isOwner && <td className="px-5 py-3 text-right font-medium tabular-nums text-success">
+                        {formatCurrency(r.profit ?? 0)}
+                      </td>}
                       <td className="px-5 py-3 text-right">
                         <Button
                           variant="ghost"
                           size="icon"
+                          disabled={privacyEnabled}
                           aria-label={`Print receipt for ${r.transactionId}`}
                           title="Print receipt"
                           onClick={() => openReceipt(r)}
                         >
                           <Printer className="h-4 w-4" />
                         </Button>
-                        <Button
+                        {isOwner && <Button
                           variant="ghost"
                           size="icon"
                           className="text-muted-foreground hover:text-destructive"
+                          aria-label={`Delete ${r.transactionId}`}
                           onClick={() => setDeleteTarget(r)}
                         >
                           <Trash2 className="h-4 w-4" />
-                        </Button>
+                        </Button>}
                       </td>
                     </tr>
                   )
@@ -505,7 +512,7 @@ export function SalesPage() {
               ) : (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={isOwner ? 9 : 7}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
                     No sales records found for the selected date range.
@@ -543,11 +550,11 @@ export function SalesPage() {
             </div>
             <div className="max-h-[55vh] overflow-auto rounded-lg border border-border bg-white py-3">
               <div ref={receiptRef}>
-                <SaleReceipt sale={printTarget} businessName={businessName} />
+                {privacyEnabled ? <p className="p-5 text-center text-sm text-muted-foreground">Receipt details hidden in demo privacy mode</p> : <SaleReceipt sale={printTarget} businessName={businessName} />}
               </div>
             </div>
-            {receiptError && <p role="alert" className="text-sm text-destructive">{receiptError}</p>}
-            {receiptNotice && <p role="status" className="text-sm text-success">{receiptNotice}</p>}
+            {receiptError && <p role="alert" className="text-sm text-destructive">{privateText(receiptError)}</p>}
+            {receiptNotice && <p role="status" className="text-sm text-success">{privateText(receiptNotice)}</p>}
             {isAndroid && (
               <p className="text-xs text-muted-foreground">
                 Download the PNG, then open it from Files &gt; Downloads in your PT-210 printer app.
@@ -555,11 +562,11 @@ export function SalesPage() {
             )}
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="ghost" onClick={() => setPrintTarget(null)}>Cancel</Button>
-              <Button variant="outline" onClick={isAndroid ? handleBrowserPrint : handleDownloadReceipt} disabled={receiptBusy}>
+              <Button variant="outline" onClick={isAndroid ? handleBrowserPrint : handleDownloadReceipt} disabled={privacyEnabled || receiptBusy}>
                 {isAndroid ? <Printer className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                 {isAndroid ? "Browser Print" : "Download PNG"}
               </Button>
-              <Button onClick={isAndroid ? handleDownloadReceipt : handleBrowserPrint} disabled={receiptBusy}>
+              <Button onClick={isAndroid ? handleDownloadReceipt : handleBrowserPrint} disabled={privacyEnabled || receiptBusy}>
                 {isAndroid ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
                 {isAndroid ? "Download Image" : "Print Receipt"}
               </Button>
@@ -581,11 +588,11 @@ export function SalesPage() {
         <form onSubmit={handleRecordSale} className="flex flex-col gap-4">
           {pendingSale && !isSubmitting && <p role="status" className="text-sm text-amber-700 dark:text-amber-400">This sale has not been confirmed. Retry the same sale to check whether it was saved; it will not deduct stock twice.</p>}
           {inventoryLoading && <p role="status" className="text-sm text-muted-foreground">Refreshing current stock…</p>}
-          {inventoryError && <div role="alert" className="text-sm text-destructive">Stock could not be refreshed: {inventoryError} <Button type="button" variant="outline" size="sm" onClick={() => void refreshProducts()}>Refresh Stock</Button></div>}
+          {inventoryError && <div role="alert" className="text-sm text-destructive">Stock could not be refreshed. Displayed quantities may be outdated. {privateText(inventoryError)} <Button type="button" variant="outline" size="sm" onClick={() => void refreshProducts()}>Refresh Stock</Button></div>}
           <fieldset disabled={isSubmitting || pendingSale !== null || inventoryLoading || !!inventoryError} className="flex min-w-0 flex-col gap-4">
           <div className="space-y-1">
-            <Label>Buyer Name</Label>
-            <Input name="buyerName" required maxLength={255} defaultValue={pendingSale?.buyerName} placeholder="Enter buyer's name" />
+            <Label htmlFor="saleBuyerName">Buyer Name</Label>
+            <Input id="saleBuyerName" name="buyerName" required maxLength={255} defaultValue={pendingSale?.buyerName} placeholder="Enter buyer's name" />
           </div>
 
           <div className="space-y-1">
@@ -693,6 +700,8 @@ export function SalesPage() {
                 onChange={(e) => setDownpayment(parseFloat(e.target.value) || 0)}
                 placeholder="0.00"
               />
+              <Label htmlFor="saleDueDate">Promised payment date (optional)</Label>
+              <Input id="saleDueDate" name="dueDate" type="date" min={philippineToday()} defaultValue={pendingSale?.dueDate ?? ""} />
               <p className="text-[11px] text-muted-foreground">
                 An entry will automatically be created in the <strong>Loan Tracker</strong> with the initial balance due.
               </p>
@@ -701,7 +710,7 @@ export function SalesPage() {
 
           </fieldset>
 
-          {saleError && <p role="alert" className="text-sm text-destructive">{saleError}</p>}
+          {saleError && <p role="alert" className="text-sm text-destructive">{privateText(saleError)}</p>}
 
           <div className="mt-4 flex justify-end gap-3">
             <Button type="button" variant="ghost" disabled={isSubmitting} onClick={() => {
@@ -761,7 +770,7 @@ export function SalesPage() {
 
           {/* Password field */}
           <div className="space-y-1">
-            <Label htmlFor="deletePassword">Admin Password</Label>
+            <Label htmlFor="deletePassword">Your Owner Password</Label>
             <Input
               id="deletePassword"
               ref={passwordInputRef}
@@ -775,7 +784,7 @@ export function SalesPage() {
               required
             />
             {deleteError && (
-              <p className="mt-1 text-xs text-destructive">{deleteError}</p>
+              <p className="mt-1 text-xs text-destructive">{privateText(deleteError)}</p>
             )}
           </div>
 

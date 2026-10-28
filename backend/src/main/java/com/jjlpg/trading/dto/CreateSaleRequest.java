@@ -33,8 +33,14 @@ public record CreateSaleRequest(
         @jakarta.validation.Valid
         TankExchangeRequest tankExchange,
 
-        java.util.UUID requestId
+        java.util.UUID requestId,
+        java.time.LocalDate dueDate
 ) {
+    public CreateSaleRequest(Long productId, Integer quantity, String buyerName, String address,
+                             String deliveryMethod, String paymentMethod, BigDecimal downpayment,
+                             TankExchangeRequest tankExchange, java.util.UUID requestId) {
+        this(productId, quantity, buyerName, address, deliveryMethod, paymentMethod, downpayment, tankExchange, requestId, null);
+    }
     public CreateSaleRequest(Long productId, Integer quantity, String buyerName, String address,
                              String deliveryMethod, String paymentMethod, BigDecimal downpayment,
                              TankExchangeRequest tankExchange) {
