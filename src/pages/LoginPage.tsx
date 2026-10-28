@@ -1,4 +1,3 @@
-import { usePrivacy, privateText, requireVisibleDetails } from "@/lib/privacy"
 import { useState, type FormEvent } from "react"
 import { Navigate } from "react-router-dom"
 import { Lock, User, Loader2, AlertCircle } from "lucide-react"
@@ -6,11 +5,9 @@ import { Button, Card, Input, Label } from "@/components/ui"
 import { BrandLogo } from "@/components/BrandLogo"
 import { BRAND_NAME } from "@/lib/brand"
 import { useAuth } from "@/lib/auth"
-import { PrivacyToggle } from "@/components/PrivacyToggle"
 import { ThemeToggle } from "@/components/ThemeToggle"
 
 export function LoginPage() {
-  const { privacyEnabled } = usePrivacy()
   const { signIn, isAuthenticated, homePath } = useAuth()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -42,13 +39,12 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-primary/5 px-4 py-12">
       <div className="w-full max-w-md">
-        <div className="mb-2 flex justify-end gap-2">
-          <PrivacyToggle />
+        <div className="mb-2 flex justify-end">
           <ThemeToggle />
         </div>
         <div className="mb-8 flex flex-col items-center text-center">
           <BrandLogo variant="full" decorative className="h-60 w-72 max-w-full object-cover" />
-          <h1 className="sr-only">{privacyEnabled ? "Business demo" : BRAND_NAME}</h1>
+          <h1 className="sr-only">{BRAND_NAME}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Staff Portal {"\u2014"} sign in to continue
           </p>
