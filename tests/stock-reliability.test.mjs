@@ -80,8 +80,8 @@ function page(name, overrides = {}, storage = new Map()) {
       if (id === "@/lib/api") return api
       if (id === "@/lib/privacy") return { usePrivacy: () => ({ privacyEnabled: false }), privateText: value => value, requireVisibleDetails: () => {} }
       if (id === "@/lib/auth") return { useAuth: () => ({ username: "admin" }) }
-      if (id === "@/lib/utils") return { cn: (...parts) => parts.filter(Boolean).join(" "), formatCurrency: String, formatDate: String }
-      if (id === "@/lib/pendingSale" || id === "@/lib/useInventoryRefresh") return load(`src/lib/${id.split("/").at(-1)}.ts`)
+      if (id === "@/lib/utils") return { cn: (...parts) => parts.filter(Boolean).join(" "), formatCurrency: String, formatDate: String, philippineToday: () => "2026-10-29" }
+      if (["@/lib/pendingSale", "@/lib/useInventoryRefresh", "@/lib/dateRanges"].includes(id)) return load(`src/lib/${id.split("/").at(-1)}.ts`)
       if (id.startsWith("@/components/") || ["lucide-react", "recharts", "react-router-dom"].includes(id)) return stubs
       throw new Error(`Unexpected import: ${id}`)
     }
@@ -282,5 +282,41 @@ test("confirmation updates the dropdown even when the subsequent stock refresh f
   assert.match(app.text(), /Stock remaining after confirmation: 93/)
   assert.match(app.text(), /Displayed quantities may be outdated/)
   assert.equal(app.storage.size, 0, "a failed refresh must not turn a saved sale into a retry")
+  app.unmount()
+})
+
+test("sales and profit receive the same dates for presets and custom selections", async () => {
+  const calls = []
+  const app = page("SalesPage", { getSales: async (range) => { calls.push(range); return { summary, records: [] } } })
+  app.render(); await app.flush()
+  for (const range of [
+    { startDate: "2026-10-29", endDate: "2026-10-29" },
+    { startDate: "2026-10-28", endDate: "2026-10-28" },
+    { startDate: "2026-10-23", endDate: "2026-10-29" },
+    { startDate: "2026-09-12", endDate: "2026-09-15" },
+  ]) {
+    app.find((node) => node.type === "DateRangePicker").props.onChange(range)
+    await app.flush()
+    assert.deepEqual(calls.at(-1), range)
+    assert.deepEqual(app.find((node) => node.type === "ExpenseProfitPanel").props.range, range)
+  }
+  app.unmount()
+})
+
+test("an older sales response cannot replace the newly selected day's sales", async () => {
+  let finishOld
+  let finishNew
+  let calls = 0
+  const app = page("SalesPage", { getSales: () => new Promise((resolve) => { if (++calls === 1) finishOld = resolve; else finishNew = resolve }) })
+  app.render(); await app.flush()
+  app.find((node) => node.type === "DateRangePicker").props.onChange({ startDate: "2026-10-29", endDate: "2026-10-29" })
+  await app.flush()
+  finishNew({ summary: { ...summary, totalRevenue: 1234 }, records: [] })
+  await app.flush()
+  assert.match(app.text(), /1234/)
+  finishOld({ summary: { ...summary, totalRevenue: 9876 }, records: [] })
+  await app.flush()
+  assert.match(app.text(), /1234/)
+  assert.doesNotMatch(app.text(), /9876/)
   app.unmount()
 })

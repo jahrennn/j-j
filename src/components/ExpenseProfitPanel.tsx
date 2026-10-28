@@ -4,9 +4,17 @@ import { Button, Card } from "@/components/ui"
 import { getExpenseProfit, type DateRange, type ExpenseProfit } from "@/lib/api"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
-export function ExpenseProfitPanel({ range, revision = 0, title = "This month's profit" }: {
+type ExpenseProfitPanelProps = {
   range?: DateRange; revision?: number; title?: string
-}) {
+}
+
+export function ExpenseProfitPanel(props: ExpenseProfitPanelProps) {
+  // A changed date selection must never display totals from the previous period,
+  // even for the render before its request effect runs.
+  return <ExpenseProfitContent key={`${props.range?.startDate ?? "month"}/${props.range?.endDate ?? "month"}`} {...props} />
+}
+
+function ExpenseProfitContent({ range, revision = 0, title = "This month's profit" }: ExpenseProfitPanelProps) {
   const { privacyEnabled } = usePrivacy()
   const [profit, setProfit] = useState<ExpenseProfit | null>(null)
   const [loading, setLoading] = useState(true)
@@ -27,6 +35,9 @@ export function ExpenseProfitPanel({ range, revision = 0, title = "This month's 
       return
     }
     getExpenseProfit(startDate && endDate ? { startDate, endDate } : undefined).then((result) => {
+      if (hasRange && (result.startDate !== startDate || result.endDate !== endDate)) {
+        throw new Error("The server returned profit for different dates. Retry to load the selected period.")
+      }
       if (active) setProfit(result)
     }).catch((err) => {
       if (active) setError(err instanceof Error ? err.message : "Could not load profit after expenses")
@@ -38,7 +49,7 @@ export function ExpenseProfitPanel({ range, revision = 0, title = "This month's 
     <div className="border-b border-border px-5 py-4">
       <h3 className="font-semibold">{title}</h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        {profit ? `${formatDate(profit.startDate)} – ${formatDate(profit.endDate)} · ` : ""}
+        {startDate && endDate ? `${formatDate(startDate)} – ${formatDate(endDate)} · ` : profit ? `${formatDate(profit.startDate)} – ${formatDate(profit.endDate)} · ` : ""}
         Gross profit − operating expenses = net profit. Voided expenses are excluded.
       </p>
     </div>

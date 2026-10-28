@@ -1,32 +1,8 @@
 import { CalendarDays } from "lucide-react"
 import type { DateRange } from "@/lib/api"
 import { Button } from "./ui"
-
-interface Preset {
-  label: string
-  days: number
-}
-
-const presets: Preset[] = [
-  { label: "7D", days: 7 },
-  { label: "30D", days: 30 },
-  { label: "90D", days: 90 },
-]
-
-function toLocalDateString(d: Date): string {
-  const offset = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - offset).toISOString().slice(0, 10);
-}
-
-function isoDaysAgo(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  return toLocalDateString(d)
-}
-
-function today(): string {
-  return toLocalDateString(new Date())
-}
+import { reportPresets, reportDateRange } from "@/lib/dateRanges"
+import { philippineToday } from "@/lib/utils"
 
 export function DateRangePicker({
   value,
@@ -35,9 +11,7 @@ export function DateRangePicker({
   value: DateRange
   onChange: (range: DateRange) => void
 }) {
-  function applyPreset(days: number) {
-    onChange({ startDate: isoDaysAgo(days), endDate: today() })
-  }
+  const today = philippineToday()
 
   return (
     <div className="flex flex-wrap items-end gap-3">
@@ -54,7 +28,7 @@ export function DateRangePicker({
             id="startDate"
             type="date"
             value={value.startDate}
-            max={value.endDate || today()}
+            max={value.endDate || today}
             onChange={(e) => onChange({ ...value, startDate: e.target.value })}
             className="h-10 rounded-lg border border-input bg-card pl-9 pr-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
@@ -75,7 +49,7 @@ export function DateRangePicker({
             type="date"
             value={value.endDate}
             min={value.startDate}
-            max={today()}
+            max={today}
             onChange={(e) => onChange({ ...value, endDate: e.target.value })}
             className="h-10 rounded-lg border border-input bg-card pl-9 pr-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
@@ -83,17 +57,23 @@ export function DateRangePicker({
       </div>
 
       <div className="flex items-center gap-1.5">
-        {presets.map((p) => (
-          <Button
-            key={p.label}
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => applyPreset(p.days)}
-          >
-            {p.label}
-          </Button>
-        ))}
+        {reportPresets.map((p) => {
+          const dates = reportDateRange(p.label, today)
+          const selected = value.startDate === dates.startDate && value.endDate === dates.endDate
+          return (
+            <Button
+              key={p.label}
+              type="button"
+              variant={selected ? "primary" : "outline"}
+              size="sm"
+              title={p.description}
+              aria-pressed={selected}
+              onClick={() => onChange(dates)}
+            >
+              {p.label}
+            </Button>
+          )
+        })}
       </div>
     </div>
   )

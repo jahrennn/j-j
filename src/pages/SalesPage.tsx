@@ -32,20 +32,10 @@ import { useInventoryRefresh } from "@/lib/useInventoryRefresh"
 import { ApiError, type CreateSalePayload } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { clearPendingSale, readPendingSale, savePendingSale } from "@/lib/pendingSale"
-
-function toLocalDateString(d: Date): string {
-  const offset = d.getTimezoneOffset() * 60000
-  return new Date(d.getTime() - offset).toISOString().slice(0, 10)
-}
+import { reportDateRange } from "@/lib/dateRanges"
 
 function defaultRange(): DateRange {
-  const end = new Date()
-  const start = new Date()
-  start.setDate(end.getDate() - 30)
-  return {
-    startDate: toLocalDateString(start),
-    endDate: toLocalDateString(end),
-  }
+  return reportDateRange("30D")
 }
 
 const summaryCards = [
@@ -79,6 +69,7 @@ export function SalesPage() {
   const [data, setData] = useState<SalesResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [profitRevision, setProfitRevision] = useState(0)
+  const reportRequest = useRef(0)
 
   const [products, setProducts] = useState<Product[]>([])
   const [inventoryLoading, setInventoryLoading] = useState(true)
@@ -112,21 +103,25 @@ export function SalesPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const passwordInputRef = useRef<HTMLInputElement>(null)
 
-  const fetchSales = async () => {
+  const fetchSales = async (refreshProfit = false) => {
+    const request = ++reportRequest.current
     try {
       setLoading(true)
+      setData(null)
       const res = await getSales(range)
+      if (request !== reportRequest.current) return
       setData(res)
-      setProfitRevision((value) => value + 1)
+      if (refreshProfit) setProfitRevision((value) => value + 1)
     } catch (err) {
       console.error(err)
     } finally {
-      setLoading(false)
+      if (request === reportRequest.current) setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchSales()
+    void fetchSales()
+    return () => { reportRequest.current++ }
   }, [range])
 
   const refreshProducts = async (background = false) => {
@@ -265,7 +260,7 @@ export function SalesPage() {
       setPaymentMethod("Cash")
       setDownpayment(0)
       setHasTankExchange(false)
-      fetchSales()
+      void fetchSales(true)
     } catch (err) {
       setSaleError(err instanceof Error ? err.message : "Failed to record sale")
       // Only an initial validation rejection is a definite failure. A rejected
@@ -289,7 +284,7 @@ export function SalesPage() {
     try {
       await deleteSale(deleteTarget.id, deletePassword)
       setDeleteTarget(null)
-      fetchSales()
+      void fetchSales(true)
       void refreshProducts()
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Failed to delete sale")

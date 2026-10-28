@@ -11,7 +11,8 @@
     "test:branding": "node --test tests/receipt-branding.test.mjs",
     "check:live-stock": "node scripts/check-live-stock-ui.mjs",
     "preview": "vite preview",
-    "test:utang": "node --test tests/utang.test.mjs"
+    "test:utang": "node --test tests/utang.test.mjs",
+    "test:dates": "node --test tests/report-dates.test.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
